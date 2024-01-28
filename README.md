@@ -14,14 +14,30 @@ conda create --name mini_mss python=3.8
 sh env.sh
 ```
 
-## 1. Train the source separation system.
+## 1. Download datasets
+
+MUSDB18HQ is a music dataset with individual vocals, bass, drums, and other stems of music. We provide a mini version which contains 1% of the full dataset for users to quickly run the code.
+
+```bash
+mkdir datasets
+cd datasets
+
+wget -O mini_musdb18hq.tar https://huggingface.co/datasets/qiuqiangkong/mini_audio_datasets/resolve/main/mini_musdb18hq.tar?download=true
+
+tar -xvf mini_musdb18hq.tar
+cd ..
+```
+
+Users can visit https://zenodo.org/records/3338373 to download the full MUSDB18HQ dataset
+
+## 2. Train the source separation system.
 ```python
 python train.py
 ```
 
 After training on a single GPU for a few minutes, users can use the "latest.pth" checkpoint to inference their favorite songs.
 
-## 2. Inference
+## 3. Inference
 ```
 python inference.py
 ```

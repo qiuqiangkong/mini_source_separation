@@ -20,11 +20,11 @@ def train(args):
 
     # Default parameters
     device = "cuda"
-    epochs = 20
+    epochs = 100
     checkpoints_dir = Path("./checkpoints", model_name)
     debug = False
     
-    root = "/home/qiuqiangkong/datasets/musdb18hq"
+    root = "./datasets/mini_musdb18hq"
 
     # Dataset
     dataset = Musdb18HQ(

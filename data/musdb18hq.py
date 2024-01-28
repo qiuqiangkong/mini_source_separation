@@ -2,6 +2,7 @@ import torch
 from pathlib import Path
 import pandas as pd
 import random
+import os
 import torchaudio
 from pathlib import Path
 import librosa
@@ -20,7 +21,7 @@ class Musdb18HQ:
 		self.segment_seconds = segment_seconds
 
 		self.audios_dir = Path(self.root, self.split)
-		self.audio_names = sorted(list(Path(self.audios_dir).glob("*")))
+		self.audio_names = sorted(os.listdir(self.audios_dir))
 		self.audios_num = len(self.audio_names)
 		
 		self.source_types = ["mixture", "vocals"]
@@ -34,7 +35,7 @@ class Musdb18HQ:
 		audio_name = self.audio_names[audio_index]
 
 		data_dict = {}
-
+		
 		audio_path = Path(self.audios_dir, audio_name, "mixture.wav")
 		duration = librosa.get_duration(path=audio_path)
 		orig_sr = librosa.get_samplerate(path=audio_path)
