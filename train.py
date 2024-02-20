@@ -1,6 +1,7 @@
 import torch
 import time
 import librosa
+import random
 import numpy as np
 import soundfile
 from pathlib import Path
@@ -20,11 +21,19 @@ def train(args):
 
     # Default parameters
     device = "cuda"
-    epochs = 100
-    checkpoints_dir = Path("./checkpoints", model_name)
+    batch_size_per_device = 8
+    num_workers = 8
+    save_step_frequency = 2000
+    training_steps = 100000
     debug = False
+    devices_num = torch.cuda.device_count()
+
+    print("Devices num: {}".format(devices_num))
+
+    checkpoints_dir = Path("./checkpoints", model_name)
     
-    root = "./datasets/mini_musdb18hq"
+    # root = "./datasets/mini_musdb18hq"
+    root = "/datasets/unzipped_packages/musdb18hq"
 
     # Dataset
     dataset = Musdb18HQ(
@@ -33,10 +42,14 @@ def train(args):
         segment_seconds=2.,
     )
 
+    # Sampler
+    sampler = Sampler(dataset_size=len(dataset))
+
     # Dataloader
     dataloader = torch.utils.data.DataLoader(
         dataset=dataset, 
-        batch_size=4, 
+        batch_size=8, 
+        sampler=sampler,
         collate_fn=collate_fn,
         num_workers=8, 
         pin_memory=True
@@ -53,32 +66,34 @@ def train(args):
     Path(checkpoints_dir).mkdir(parents=True, exist_ok=True)
 
     # Train
-    for epoch in range(1, epochs):
-        
-        for data in tqdm(dataloader):
+    for step, data in enumerate(tqdm(dataloader)):
 
-            mixture = data["mixture"].to(device)
-            target = data["vocals"].to(device)
+        mixture = data["mixture"].to(device)
+        target = data["vocals"].to(device)
 
-            # Play the audio.
-            if debug:
-                play_audio(mixture, target)
+        # Play the audio.
+        if debug:
+            play_audio(mixture, target)
 
-            optimizer.zero_grad()
+        optimizer.zero_grad()
 
-            model.train()
-            output = model(mixture=mixture) 
+        # Forward
+        model.train()
+        output = model(mixture=mixture) 
 
-            loss = l1_loss(output, target)
-            loss.backward()
+        # Backward
+        loss = l1_loss(output, target)
+        loss.backward()
 
-            optimizer.step()
+        # Optimize
+        optimizer.step()
 
-        print(loss)
+        if step % 100 == 0:
+            print("step: {}, loss: {:.3f}".format(step, loss.item()))
 
         # Save model
-        if epoch % 2 == 0:
-            checkpoint_path = Path(checkpoints_dir, "epoch={}.pth".format(epoch))
+        if step % save_step_frequency == 0:
+            checkpoint_path = Path(checkpoints_dir, "step={}.pth".format(step))
             torch.save(model.state_dict(), checkpoint_path)
             print("Save model to {}".format(checkpoint_path))
 
@@ -86,12 +101,35 @@ def train(args):
             torch.save(model.state_dict(), Path(checkpoint_path))
             print("Save model to {}".format(checkpoint_path))
 
+        if step == training_steps:
+            break
+
 
 def get_model(model_name):
     if model_name == "UNet":
         return UNet()
     else:
         raise NotImplementedError
+
+
+class Sampler:
+    def __init__(self, dataset_size):
+        self.indexes = list(range(dataset_size))
+        
+    def __iter__(self):
+
+        pointer = 0
+
+        while True:
+
+            if pointer == len(self.indexes):
+                pointer = 0
+                random.shuffle(self.indexes)
+
+            index = self.indexes[pointer]
+            pointer += 1
+
+            yield index
 
 
 def l1_loss(output, target):

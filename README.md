@@ -8,7 +8,9 @@ This codebase provide a minimal Pytorch tutorial of music source separation, inc
 git clone https://github.com/qiuqiangkong/mini_mss
 
 # Install Python environment
-conda create --name mini_mss python=3.8
+conda create --name mss python=3.8
+
+conda activate mss
 
 # Install Python packages dependencies.
 sh env.sh

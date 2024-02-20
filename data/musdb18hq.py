@@ -62,7 +62,7 @@ class Musdb18HQ:
 
 	def __len__(self):
 
-		return 1000	 # Let each epoch contains 1000 data samples.
+		return self.audios_num
 
 
 	def check_exists(self):

@@ -65,7 +65,7 @@ class Fourier(nn.Module):
             input=x, 
             n_fft=self.n_fft,
             hop_length=self.hop_length,
-            window=torch.hann_window(2048).to(x.device),
+            window=torch.hann_window(self.n_fft).to(x.device),
             normalized=self.normalized,
         )
         # shape: (batch_size * channels_num, samples_num)
