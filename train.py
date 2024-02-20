@@ -26,14 +26,11 @@ def train(args):
     save_step_frequency = 2000
     training_steps = 100000
     debug = False
-    devices_num = torch.cuda.device_count()
-
-    print("Devices num: {}".format(devices_num))
-
+    
     checkpoints_dir = Path("./checkpoints", model_name)
     
     # root = "./datasets/mini_musdb18hq"
-    root = "/datasets/unzipped_packages/musdb18hq"
+    root = "/datasets/musdb18hq"
 
     # Dataset
     dataset = Musdb18HQ(

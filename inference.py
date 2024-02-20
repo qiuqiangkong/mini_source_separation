@@ -30,7 +30,7 @@ def inference(args):
     model.to(device)
 
     # Load audio. Change this path to your favorite song.
-    root = "/home/qiuqiangkong/datasets/musdb18hq/test"
+    root = "/datasets/musdb18hq/test"
     mixture_path = Path(root, "Al James - Schoolboy Facination", "mixture.wav") 
 
     mixture, orig_sr = librosa.load(path=mixture_path, sr=None, mono=False)
