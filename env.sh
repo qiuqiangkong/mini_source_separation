@@ -5,3 +5,4 @@ pip install pandas
 pip install einops
 pip install tqdm
 pip install museval
+pip install wandb

@@ -8,6 +8,7 @@ import torch.optim as optim
 from tqdm import tqdm
 import argparse
 import random
+from accelerate import Accelerator
 import wandb
 wandb.require("core")
 
@@ -77,7 +78,7 @@ def train(args):
         dataset=train_dataset, 
         batch_size=batch_size, 
         sampler=test_sampler,
-        num_workers=num_workers, 
+        num_workers=1, 
         pin_memory=pin_memory
     )
 
@@ -85,7 +86,7 @@ def train(args):
         dataset=test_dataset, 
         batch_size=batch_size, 
         sampler=test_sampler,
-        num_workers=num_workers, 
+        num_workers=1, 
         pin_memory=pin_memory
     )
 
@@ -98,6 +99,12 @@ def train(args):
 
     if use_scheduler:
         scheduler = optim.lr_scheduler.LambdaLR(optimizer=optimizer, lr_lambda=warmup_lambda)
+
+    # Prepare for multiprocessing
+    accelerator = Accelerator()
+
+    model, optimizer, train_dataloader, scheduler = accelerator.prepare(
+        model, optimizer, train_dataloader, scheduler)
 
     # Create checkpoints directory
     Path(checkpoints_dir).mkdir(parents=True, exist_ok=True)
@@ -121,7 +128,7 @@ def train(args):
 
         # Optimize
         optimizer.zero_grad()   # Reset all parameter.grad to 0
-        loss.backward()     # Update all parameter.grad
+        accelerator.backward(loss)     # Update all parameter.grad
         optimizer.step()    # Update all parameters based on all parameter.grad
 
         # Learning rate scheduler (optional)
@@ -130,34 +137,50 @@ def train(args):
 
         # Evaluate
         if step % test_step_frequency == 0:
-            
-            train_sdr = validate(model, eval_train_dataloader)
-            test_sdr = validate(model, eval_test_dataloader)
 
-            print("--- step: {} ---".format(step))
-            print("Loss: {:.3f}".format(loss))
-            print("Train SDR: {:.3f}".format(train_sdr))
-            print("Test SDR: {:.3f}".format(test_sdr))
+            accelerator.wait_for_everyone()
 
-            if wandb_log:
-                wandb.log(
-                    data={
-                        "train_sdr": train_sdr,
-                        "test_sdr": test_sdr,
-                        "loss": loss.item(),
-                    },
-                    step=step
-                )
+            if accelerator.is_main_process:
+
+                if accelerator.num_processes == 1:
+                    val_model = model
+                else:
+                    val_model = model.module
+                
+                train_sdr = validate(val_model, eval_train_dataloader)
+                test_sdr = validate(val_model, eval_test_dataloader)
+
+                print("--- step: {} ---".format(step))
+                print("Loss: {:.3f}".format(loss))
+                print("Train SDR: {:.3f}".format(train_sdr))
+                print("Test SDR: {:.3f}".format(test_sdr))
+
+                if wandb_log:
+                    wandb.log(
+                        data={
+                            "train_sdr": train_sdr,
+                            "test_sdr": test_sdr,
+                            "loss": loss.item(),
+                        },
+                        step=step
+                    )
 
         # Save model.
         if step % save_step_frequency == 0:
-            checkpoint_path = Path(checkpoints_dir, "step={}.pth".format(step))
-            torch.save(model.state_dict(), checkpoint_path)
-            print("Save model to {}".format(checkpoint_path))
 
-            checkpoint_path = Path(checkpoints_dir, "latest.pth")
-            torch.save(model.state_dict(), Path(checkpoint_path))
-            print("Save model to {}".format(checkpoint_path))
+            accelerator.wait_for_everyone()
+
+            if accelerator.is_main_process:
+
+                unwrapped_model = accelerator.unwrap_model(model)
+
+                checkpoint_path = Path(checkpoints_dir, "step={}.pth".format(step))
+                torch.save(unwrapped_model.state_dict(), checkpoint_path)
+                print("Save model to {}".format(checkpoint_path))
+
+                checkpoint_path = Path(checkpoints_dir, "latest.pth")
+                torch.save(unwrapped_model.state_dict(), Path(checkpoint_path))
+                print("Save model to {}".format(checkpoint_path))
 
         if step == training_steps:
             break

@@ -19,8 +19,6 @@ class UNet(Fourier):
 
         self.downsample_ratio = 16
         
-        # freq_bins = self.n_fft // 2 + 1
-        
         self.audio_channels = 2
         self.cmplx_num = 2
         in_channels = self.audio_channels * self.cmplx_num
@@ -54,9 +52,10 @@ class UNet(Fourier):
 
         # Complex spectrum.
         complex_sp = self.stft(mixture)
-        # shape: (batch_size, channels_num, time_steps, freq_bins)
+        # shape: (B, C, T, F)
 
         x = torch.view_as_real(complex_sp)
+        
         x = rearrange(x, 'b c t f k -> b (c k) t f')        
         # shape: (B, C, T, F)
 
@@ -86,51 +85,6 @@ class UNet(Fourier):
         output = self.istft(sep_stft)
 
         return output
-
-    '''
-    def forward(self, mixture):
-        """Separation model.
-
-        Args:
-            mixture: (batch_size, channels_num, samples_num)
-
-        Outputs:
-            output: (batch_size, channels_num, samples_num)
-        """
-
-        # Complex spectrum.
-        complex_sp = self.stft(mixture)
-        # shape: (batch_size, channels_num, time_steps, freq_bins)
-
-        mag = torch.abs(complex_sp)
-        angle = torch.angle(complex_sp)
-        # shape: (batch_size, channels_num, time_steps, freq_bins, complex=2)
-
-        # Cut a spectrum that can be evenly divided by downsample_ratio.
-        x = self.cut_image(mag)
-
-        x1, latent1 = self.encoder_block1(x)
-        x2, latent2 = self.encoder_block2(x1)
-        x3, latent3 = self.encoder_block3(x2)
-        x4, latent4 = self.encoder_block4(x3)
-        _, h = self.middle(x4)
-        x5 = self.decoder_block1(h, latent4)
-        x6 = self.decoder_block2(x5, latent3)
-        x7 = self.decoder_block3(x6, latent2)
-        x8 = self.decoder_block4(x7, latent1)
-
-        x = torch.sigmoid(self.last_conv(x8))
-
-        # Patch a spectrum to the original shape.
-        mask = self.patch_image(x, time_steps=mag.shape[2])
-
-        # Predict the spectrum of the target signal.
-        x = (mask * mag) * torch.exp(1.j * angle)
-
-        output = self.istft(x)
-
-        return output
-    '''
 
     def process_image(self, x):
         """Cut a spectrum that can be evenly divided by downsample_ratio.
