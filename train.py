@@ -1,16 +1,23 @@
-import torch
-import torch.nn.functional as F
-from torch.utils.data.sampler import SequentialSampler
-import numpy as np
-import soundfile
-from pathlib import Path
-import torch.optim as optim
-from tqdm import tqdm
 import argparse
+import os
 import random
+from pathlib import Path
+from typing import Union
+
+import librosa
+import museval
+import numpy as np
+import torch
+import torch.optim as optim
+from torch import nn
+from torch.utils.data import DataLoader
+from tqdm import tqdm
+
 import wandb
+
 wandb.require("core")
 
+from data.audio_io import load
 from data.musdb18hq import MUSDB18HQ
 from models.unet import UNet
 
@@ -22,6 +29,9 @@ def train(args):
 
     # Default parameters
     sr = 44100
+    mono = False
+    clip_duration = 2.
+    remix_prob = 0.8
     batch_size = 16
     num_workers = 16
     pin_memory = True
@@ -29,62 +39,39 @@ def train(args):
     use_scheduler = True
     test_step_frequency = 1000
     save_step_frequency = 1000
+    evaluate_num = 1
     training_steps = 100000
-    debug = False
     wandb_log = True
     device = "cuda"
 
     filename = Path(__file__).stem
+    source_types = MUSDB18HQ.source_types
+
+    checkpoints_dir = Path("./checkpoints", filename, model_name)
+    
+    root = "/datasets/musdb18hq"
 
     if wandb_log:
         wandb.init(project="mini_source_separation")
 
-    checkpoints_dir = Path("./checkpoints", model_name)
-    
-    root = "/datasets/musdb18hq"
-
-    # Dataset
+    # Training dataset
     train_dataset = MUSDB18HQ(
         root=root,
         split="train",
-        sr=44100,
-        mono=False,
-        segment_duration=2.,
+        sr=sr,
+        mono=mono,
+        clip_duration=clip_duration,
+        remix_prob=remix_prob,
     )
 
-    test_dataset = MUSDB18HQ(
-        root=root,
-        split="test",
-        sr=44100,
-        mono=False,
-        segment_duration=2.,
-    )
-
-    # Sampler
+    # Samplers
     train_sampler = InfiniteSampler(train_dataset)
-    test_sampler = SequentialSampler(test_dataset)
 
-    # Dataloader
-    train_dataloader = torch.utils.data.DataLoader(
+    # Dataloaders
+    train_dataloader = DataLoader(
         dataset=train_dataset, 
         batch_size=batch_size, 
         sampler=train_sampler,
-        num_workers=num_workers, 
-        pin_memory=pin_memory
-    )
-
-    eval_train_dataloader = torch.utils.data.DataLoader(
-        dataset=train_dataset, 
-        batch_size=batch_size, 
-        sampler=test_sampler,
-        num_workers=num_workers, 
-        pin_memory=pin_memory
-    )
-
-    eval_test_dataloader = torch.utils.data.DataLoader(
-        dataset=test_dataset, 
-        batch_size=batch_size, 
-        sampler=test_sampler,
         num_workers=num_workers, 
         pin_memory=pin_memory
     )
@@ -108,10 +95,6 @@ def train(args):
         mixture = data["mixture"].to(device)
         target = data["vocals"].to(device)
 
-        # Play the audio
-        if debug:
-            play_audio(mixture, target)
-
         # Forward
         model.train()
         output = model(mixture=mixture) 
@@ -130,25 +113,40 @@ def train(args):
 
         # Evaluate
         if step % test_step_frequency == 0:
+
+            sdrs = {}
+
+            for split in ["train", "test"]:
             
-            train_sdr = validate(model, eval_train_dataloader)
-            test_sdr = validate(model, eval_test_dataloader)
+                sdr = validate(
+                    root=root, 
+                    split=split, 
+                    sr=sr,
+                    clip_duration=clip_duration,
+                    source_types=source_types, 
+                    target_source_type="vocals",
+                    batch_size=batch_size,
+                    model=model,
+                    evaluate_num=evaluate_num,
+                )
+                sdrs[split] = sdr
 
             print("--- step: {} ---".format(step))
+            print("Evaluate on {} songs.".format(evaluate_num))
             print("Loss: {:.3f}".format(loss))
-            print("Train SDR: {:.3f}".format(train_sdr))
-            print("Test SDR: {:.3f}".format(test_sdr))
+            print("Train SDR: {:.3f}".format(sdrs["train"]))
+            print("Test SDR: {:.3f}".format(sdrs["test"]))
 
             if wandb_log:
                 wandb.log(
                     data={
-                        "train_sdr": train_sdr,
-                        "test_sdr": test_sdr,
+                        "train_sdr": sdrs["train"],
+                        "test_sdr": sdrs["test"],
                         "loss": loss.item(),
                     },
                     step=step
                 )
-
+        
         # Save model.
         if step % save_step_frequency == 0:
             checkpoint_path = Path(checkpoints_dir, "step={}.pth".format(step))
@@ -179,16 +177,16 @@ class InfiniteSampler:
         
     def __iter__(self):
 
-        i = 0
+        pointer = 0
 
         while True:
 
-            if i == len(self.indexes):
+            if pointer == len(self.indexes):
                 random.shuffle(self.indexes)
-                i = 0
+                pointer = 0
                 
-            index = self.indexes[i]
-            i += 1
+            index = self.indexes[pointer]
+            pointer += 1
 
             yield index
 
@@ -204,37 +202,124 @@ def l1_loss(output, target):
     return torch.mean(torch.abs(output - target))
 
 
-def play_audio(mixture, target):
-    soundfile.write(file="tmp_mixture.wav", data=mixture[0].cpu().numpy().T, samplerate=44100)
-    soundfile.write(file="tmp_target.wav", data=target[0].cpu().numpy().T, samplerate=44100)
-    from IPython import embed; embed(using=False); os._exit(0)
 
+def validate(
+    root: str, 
+    split: Union["train", "test"], 
+    sr: int, 
+    clip_duration: float, 
+    source_types: list, 
+    target_source_type: str, 
+    batch_size: int, 
+    model: nn.Module, 
+    evaluate_num: int
+) -> float:
+    r"""Calculate SDR.
+    """
 
-def validate(model, dataloader):
+    clip_samples = round(clip_duration * sr)
+
+    audios_dir = Path(root, split)
+    audio_names = sorted(os.listdir(audios_dir))
+
+    all_sdrs = []
+
+    for audio_name in audio_names[0 : evaluate_num]:
+
+        data = {}
+
+        for source_type in source_types:
+            audio_path = Path(audios_dir, audio_name, "{}.wav".format(source_type))
+
+            audio = load(
+                audio_path,
+                sr=sr,
+                mono=False
+            )
+            # shape: (channels, audio_samples)
+
+            data[source_type] = audio
+
+        data["mixture"] = np.sum([
+            data[source_type] for source_type in source_types], axis=0)
+
+        sep_wav = separate(
+            model=model, 
+            audio=data["mixture"], 
+            clip_samples=clip_samples,
+            batch_size=batch_size
+        )
+
+        target_wav = data[target_source_type]
+
+        # Calculate SDR. Shape should be (sources_num, channels_num, audio_samples)
+        (sdrs, _, _, _) = museval.evaluate([target_wav.T], [sep_wav.T])
+
+        sdr = np.nanmedian(sdrs)
+        all_sdrs.append(sdr)
+
+    sdr = np.nanmedian(all_sdrs)
+
+    return sdr
+
+        
+
+def separate(
+    model: nn.Module, 
+    audio: np.ndarray, 
+    clip_samples: int, 
+    batch_size: int
+) -> np.ndarray:
+    r"""Separate a long audio.
+    """
 
     device = next(model.parameters()).device
 
-    sdrs = []
+    audio_samples = audio.shape[1]
+    padded_audio_samples = round(np.ceil(audio_samples / clip_samples) * clip_samples)
+    audio = librosa.util.fix_length(data=audio, size=padded_audio_samples, axis=-1)
 
-    for step, data in tqdm(enumerate(dataloader)):
+    clips = librosa.util.frame(
+        audio, 
+        frame_length=clip_samples, 
+        hop_length=clip_samples
+    )
+    # shape: (channels_num, clip_samples, clips_num)
+    
+    clips = clips.transpose(2, 0, 1)
+    # shape: (clips_num, channels_num, clip_samples)
 
-        mixture = data["mixture"].to(device)
-        target = data["vocals"].to(device)
+    clips_num = clips.shape[0]
+
+    pointer = 0
+    outputs = []
+
+    while pointer < clips_num:
+
+        batch_clips = torch.Tensor(clips[pointer : pointer + batch_size].copy()).to(device)
 
         with torch.no_grad():
             model.eval()
-            output = model(mixture=mixture)
+            batch_output = model(mixture=batch_clips)
+            batch_output = batch_output.cpu().numpy()
 
-        target = target.cpu().numpy()
-        output = output.cpu().numpy()
+        outputs.append(batch_output)
+        pointer += batch_size
 
-        for tar, out in zip(target, output):
-            sdr = calculate_sdr(ref=tar, est=out)
-            sdrs.append(sdr)
+    outputs = np.concatenate(outputs, axis=0)
+    # shape: (clips_num, channels_num, clip_samples)
 
-    return np.nanmedian(sdrs)
+    channels_num = outputs.shape[1]
+    outputs = outputs.transpose(1, 0, 2).reshape(channels_num, -1)
+    # shape: (channels_num, clips_num * clip_samples)
+
+    outputs = outputs[:, 0 : audio_samples]
+    # shape: (channels_num, audio_samples)
+
+    return outputs
 
 
+# Not used.
 def calculate_sdr(ref, est):
     eps = 1e-12
     s_true = ref

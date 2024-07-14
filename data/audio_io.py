@@ -1,8 +1,10 @@
-import librosa
+import random
 from typing import Union
+
+import librosa
+import numpy as np
 import torch
 import torchaudio
-import numpy as np
 
 
 def load(
@@ -52,13 +54,12 @@ def load(
 
     audio = audio.numpy()
 
-    # Pad short segment with 0
-    if duration:
-        audio = librosa.util.fix_length(
-            data=audio, 
-            size=round(duration * sr), 
-            axis=-1
-        )
-        # shape: (channels, audio_samples)
-
     return audio
+
+
+def random_start_time(path: str) -> float:
+    r"""Get a random start time of a audio.
+    """
+    duration = librosa.get_duration(path=path)
+    seg_start_time = random.uniform(0, duration - 0.1)
+    return seg_start_time

@@ -2,7 +2,9 @@
 
 This codebase provide a minimal Pytorch tutorial of music source separation. We use the [MUSDB18HQ](https://zenodo.org/records/3338373) dataset containing 100 training and 50 testing songs for training and validation, respectively.
 
-Users need to download the dataset from https://zenodo.org/records/3338373. The downloaded dataset looks like:
+## 0. Download datasets
+
+Users need to download the dataset from https://zenodo.org/records/3338373. After download and unzip, the dataset looks like:
 
 <pre>
 dataset_root (30 GB)
@@ -13,8 +15,8 @@ dataset_root (30 GB)
 	│   │   ├── mixture.wav
 	│   │   ├── other.wav
 	│   │   └── vocals.wav
-	│	... 
-	│	└── ...
+	│		... 
+	│		└── ...
 	└── test (50 files)
 	    ├── Al James - Schoolboy Facination
 	    │   ├── bass.wav
@@ -22,11 +24,11 @@ dataset_root (30 GB)
 	    │   ├── mixture.wav
 	    │   ├── other.wav
 	    │   └── vocals.wav
-	 	... 
-	 	└── ...
+		 	... 
+		 	└── ...
 </pre>
 
-## 0. Install dependencies.
+## 1. Install dependencies.
 
 ```bash
 git clone https://github.com/qiuqiangkong/mini_mss
@@ -40,22 +42,6 @@ conda activate mss
 sh env.sh
 ```
 
-## 1. Download datasets
-
-MUSDB18HQ is a music dataset with individual vocals, bass, drums, and other stems of music. We provide a mini version which contains 1% of the full dataset for users to quickly run the code.
-
-```bash
-mkdir datasets
-cd datasets
-
-wget -O mini_musdb18hq.tar https://huggingface.co/datasets/qiuqiangkong/mini_audio_datasets/resolve/main/mini_musdb18hq.tar?download=true
-
-tar -xvf mini_musdb18hq.tar
-cd ..
-```
-
-Users can visit https://zenodo.org/records/3338373 to download the full MUSDB18HQ dataset
-
 ## 2. Train the source separation system.
 ```python
 CUDA_VISIBLE_DEVICES=0 python train.py
@@ -64,7 +50,7 @@ CUDA_VISIBLE_DEVICES=0 python train.py
 After training on a single GPU for a few minutes, users can use the "latest.pth" checkpoint to inference their favorite songs.
 
 ## 3. Inference
-```
+```python
 python inference.py
 ```
 

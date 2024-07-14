@@ -1,19 +1,18 @@
-import torch
-import torch.nn.functional as F
-from torch.utils.data.sampler import SequentialSampler
-import numpy as np
-import soundfile
-from pathlib import Path
-import torch.optim as optim
-from tqdm import tqdm
 import argparse
-import random
+from pathlib import Path
+
+import torch
+import torch.optim as optim
 from accelerate import Accelerator
+from torch.utils.data import DataLoader
+from tqdm import tqdm
+
 import wandb
+
 wandb.require("core")
 
 from data.musdb18hq import MUSDB18HQ
-from models.unet import UNet
+from train import InfiniteSampler, get_model, l1_loss, validate, warmup_lambda
 
 
 def train(args):
@@ -23,6 +22,9 @@ def train(args):
 
     # Default parameters
     sr = 44100
+    mono = False
+    clip_duration = 2.
+    remix_prob = 0.8
     batch_size = 16
     num_workers = 16
     pin_memory = True
@@ -30,43 +32,35 @@ def train(args):
     use_scheduler = True
     test_step_frequency = 1000
     save_step_frequency = 1000
+    evaluate_num = 1
     training_steps = 100000
-    debug = False
     wandb_log = True
-    device = "cuda"
 
     filename = Path(__file__).stem
+    source_types = MUSDB18HQ.source_types
+
+    checkpoints_dir = Path("./checkpoints", filename, model_name)
+    
+    root = "/datasets/musdb18hq"
 
     if wandb_log:
         wandb.init(project="mini_source_separation")
 
-    checkpoints_dir = Path("./checkpoints", model_name)
-    
-    root = "/datasets/musdb18hq"
-
-    # Dataset
+    # Training dataset
     train_dataset = MUSDB18HQ(
         root=root,
         split="train",
-        sr=44100,
-        mono=False,
-        segment_duration=2.,
+        sr=sr,
+        mono=mono,
+        clip_duration=clip_duration,
+        remix_prob=remix_prob,
     )
 
-    test_dataset = MUSDB18HQ(
-        root=root,
-        split="test",
-        sr=44100,
-        mono=False,
-        segment_duration=2.,
-    )
-
-    # Sampler
+    # Samplers
     train_sampler = InfiniteSampler(train_dataset)
-    test_sampler = SequentialSampler(test_dataset)
 
-    # Dataloader
-    train_dataloader = torch.utils.data.DataLoader(
+    # Dataloaders
+    train_dataloader = DataLoader(
         dataset=train_dataset, 
         batch_size=batch_size, 
         sampler=train_sampler,
@@ -74,25 +68,8 @@ def train(args):
         pin_memory=pin_memory
     )
 
-    eval_train_dataloader = torch.utils.data.DataLoader(
-        dataset=train_dataset, 
-        batch_size=batch_size, 
-        sampler=test_sampler,
-        num_workers=1, 
-        pin_memory=pin_memory
-    )
-
-    eval_test_dataloader = torch.utils.data.DataLoader(
-        dataset=test_dataset, 
-        batch_size=batch_size, 
-        sampler=test_sampler,
-        num_workers=1, 
-        pin_memory=pin_memory
-    )
-
     # Model
     model = get_model(model_name)
-    model.to(device)
 
     # Optimizer
     optimizer = optim.AdamW(model.parameters(), lr=learning_rate)
@@ -112,12 +89,8 @@ def train(args):
     # Train
     for step, data in enumerate(tqdm(train_dataloader)):
 
-        mixture = data["mixture"].to(device)
-        target = data["vocals"].to(device)
-
-        # Play the audio
-        if debug:
-            play_audio(mixture, target)
+        mixture = data["mixture"]
+        target = data["vocals"]
 
         # Forward
         model.train()
@@ -147,19 +120,33 @@ def train(args):
                 else:
                     val_model = model.module
                 
-                train_sdr = validate(val_model, eval_train_dataloader)
-                test_sdr = validate(val_model, eval_test_dataloader)
+                sdrs = {}
+
+                for split in ["train", "test"]:
+            
+                    sdr = validate(
+                        root=root, 
+                        split=split, 
+                        sr=sr,
+                        clip_duration=clip_duration,
+                        source_types=source_types, 
+                        target_source_type="vocals",
+                        batch_size=batch_size,
+                        model=val_model,
+                        evaluate_num=evaluate_num,
+                    )
+                    sdrs[split] = sdr
 
                 print("--- step: {} ---".format(step))
                 print("Loss: {:.3f}".format(loss))
-                print("Train SDR: {:.3f}".format(train_sdr))
-                print("Test SDR: {:.3f}".format(test_sdr))
+                print("Train SDR: {:.3f}".format(sdrs["train"]))
+                print("Test SDR: {:.3f}".format(sdrs["test"]))
 
                 if wandb_log:
                     wandb.log(
                         data={
-                            "train_sdr": train_sdr,
-                            "test_sdr": test_sdr,
+                            "train_sdr": sdrs["train"],
+                            "test_sdr": sdrs["test"],
                             "loss": loss.item(),
                         },
                         step=step
@@ -185,89 +172,6 @@ def train(args):
         if step == training_steps:
             break
         
-
-
-def get_model(model_name):
-    if model_name == "UNet":
-        return UNet()
-    else:
-        raise NotImplementedError
-
-
-class InfiniteSampler:
-    def __init__(self, dataset):
-
-        self.indexes = list(range(len(dataset)))
-        random.shuffle(self.indexes)
-        
-    def __iter__(self):
-
-        i = 0
-
-        while True:
-
-            if i == len(self.indexes):
-                random.shuffle(self.indexes)
-                i = 0
-                
-            index = self.indexes[i]
-            i += 1
-
-            yield index
-
-
-def warmup_lambda(step, warm_up_steps=1000):
-    if step <= warm_up_steps:
-        return step / warm_up_steps
-    else:
-        return 1.
-
-
-def l1_loss(output, target):
-    return torch.mean(torch.abs(output - target))
-
-
-def play_audio(mixture, target):
-    soundfile.write(file="tmp_mixture.wav", data=mixture[0].cpu().numpy().T, samplerate=44100)
-    soundfile.write(file="tmp_target.wav", data=target[0].cpu().numpy().T, samplerate=44100)
-    from IPython import embed; embed(using=False); os._exit(0)
-
-
-def validate(model, dataloader):
-
-    device = next(model.parameters()).device
-
-    sdrs = []
-
-    for step, data in tqdm(enumerate(dataloader)):
-
-        mixture = data["mixture"].to(device)
-        target = data["vocals"].to(device)
-
-        with torch.no_grad():
-            model.eval()
-            output = model(mixture=mixture)
-
-        target = target.cpu().numpy()
-        output = output.cpu().numpy()
-
-        for tar, out in zip(target, output):
-            sdr = calculate_sdr(ref=tar, est=out)
-            sdrs.append(sdr)
-
-    return np.nanmedian(sdrs)
-
-
-def calculate_sdr(ref, est):
-    eps = 1e-12
-    s_true = ref
-    s_artif = est - ref
-    numerator = np.sum(s_true ** 2) + eps
-    denominator = np.sum(s_artif ** 2) + eps
-    sdr = 10. * (np.log10(numerator) - np.log10(denominator))
-
-    return sdr
-
 
 if __name__ == "__main__":
 
