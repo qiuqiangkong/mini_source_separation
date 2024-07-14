@@ -28,7 +28,7 @@ dataset_root (30 GB)
 		 	└── ...
 </pre>
 
-## 1. Install dependencies.
+## 1. Install dependencies
 
 ```bash
 git clone https://github.com/qiuqiangkong/mini_mss
@@ -42,9 +42,17 @@ conda activate mss
 sh env.sh
 ```
 
-## 2. Train the source separation system.
+## 2. Single GPU training
 ```python
 CUDA_VISIBLE_DEVICES=0 python train.py
+```
+
+## 2. Multiple GPUs training
+
+We use Huggingface accelerate toolkit for multiple GPUs training. Here is an example of using 4 GPUs for training.
+
+```python
+CUDA_VISIBLE_DEVICES=0,1,2,3 accelerate launch --multi_gpu --num_processes 4 train_accelerate.py
 ```
 
 After training on a single GPU for a few minutes, users can use the "latest.pth" checkpoint to inference their favorite songs.

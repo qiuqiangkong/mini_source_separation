@@ -39,7 +39,7 @@ def train(args):
     use_scheduler = True
     test_step_frequency = 1000
     save_step_frequency = 1000
-    evaluate_num = 1
+    evaluate_num = 10
     training_steps = 100000
     wandb_log = True
     device = "cuda"
@@ -224,7 +224,7 @@ def validate(
 
     all_sdrs = []
 
-    for audio_name in audio_names[0 : evaluate_num]:
+    for audio_name in tqdm(audio_names[0 : evaluate_num]):
 
         data = {}
 
