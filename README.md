@@ -55,7 +55,7 @@ We use Huggingface accelerate toolkit for multiple GPUs training. Here is an exa
 CUDA_VISIBLE_DEVICES=0,1,2,3 accelerate launch --multi_gpu --num_processes 4 train_accelerate.py
 ```
 
-The training takes around 20 min to train for 100,000 steps on a single RTX4090 GPU card. The result looks like:
+The training takes around 10 hours to train for 100,000 steps on a single RTX4090 GPU card. The result looks like:
 
 <pre>
 --- step: 0 ---                                                                           
