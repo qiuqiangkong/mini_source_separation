@@ -37,8 +37,8 @@ def train(args):
     pin_memory = True
     learning_rate = 1e-3
     use_scheduler = True
-    test_step_frequency = 1000
-    save_step_frequency = 1000
+    test_step_frequency = 5000
+    save_step_frequency = 5000
     evaluate_num = 10
     training_steps = 100000
     wandb_log = True

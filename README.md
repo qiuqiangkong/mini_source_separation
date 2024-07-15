@@ -47,7 +47,7 @@ sh env.sh
 CUDA_VISIBLE_DEVICES=0 python train.py
 ```
 
-## 2. Multiple GPUs training
+## 3. Multiple GPUs training
 
 We use Huggingface accelerate toolkit for multiple GPUs training. Here is an example of using 4 GPUs for training.
 
@@ -55,14 +55,37 @@ We use Huggingface accelerate toolkit for multiple GPUs training. Here is an exa
 CUDA_VISIBLE_DEVICES=0,1,2,3 accelerate launch --multi_gpu --num_processes 4 train_accelerate.py
 ```
 
-After training on a single GPU for a few minutes, users can use the "latest.pth" checkpoint to inference their favorite songs.
+The training takes around 20 min to train for 100,000 steps on a single RTX4090 GPU card. The result looks like:
 
-## 3. Inference
+<pre>
+--- step: 0 ---                                                                           
+Loss: 0.119                                                                                   
+Train SDR: -0.504                                                                                    
+Test SDR: -0.005                                                     
+Save model to checkpoints/train/UNet/step=0.pth                                                     
+Save model to checkpoints/train/UNet/latest.pth
+...
+--- step: 100000 ---
+Evaluate on 10 songs.
+Loss: 0.011
+Train SDR: 8.942
+Test SDR: 5.820
+Save model to checkpoints/train/UNet/step=100000.pth
+Save model to checkpoints/train/UNet/latest.pth
+</pre>
+
+The training and validation signal-to-distortion ratio (SDR) on 10 songs during training looks like:
+
+![Separation SDR](assets/result.png)
+
+## 4. Inference
+
+Users may use the trained checkpoints for inference.
+
 ```python
-python inference.py
+CUDA_VISIBLE_DEVICES=0 python inference.py
 ```
 
-After training for around 10 - 20 minutes (20 epochs), the vocal SDR will improve from -6 dB to around 2 dB. 
 
 ## Reference
 <pre>

@@ -148,8 +148,9 @@ class MUSDB18HQ(Dataset):
     
 
 if __name__ == "__main__":
-
-    # Example
+    r"""Example.
+    """
+    
     from torch.utils.data import DataLoader
 
     root = "/datasets/musdb18hq"
