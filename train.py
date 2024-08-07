@@ -17,9 +17,9 @@ import wandb
 
 wandb.require("core")
 
-from data.audio_io import load
+from data.audio import load
 from data.musdb18hq import MUSDB18HQ
-from models.unet import UNet
+from data.crops import RandomCrop
 
 
 def train(args):
@@ -39,7 +39,7 @@ def train(args):
     use_scheduler = True
     test_step_frequency = 5000
     save_step_frequency = 5000
-    evaluate_num = 10
+    evaluate_num = 2
     training_steps = 100000
     wandb_log = True
     device = "cuda"
@@ -59,9 +59,8 @@ def train(args):
         root=root,
         split="train",
         sr=sr,
-        mono=mono,
-        clip_duration=clip_duration,
-        remix_prob=remix_prob,
+        crop=RandomCrop(clip_duration=clip_duration, end_pad=0.),
+        remix_prob=remix_prob
     )
 
     # Samplers
@@ -164,7 +163,11 @@ def train(args):
 
 def get_model(model_name):
     if model_name == "UNet":
+        from models.unet import UNet
         return UNet()
+    elif model_name == "BSRoformer":
+        from models.bs_roformer import BSRoformer
+        return BSRoformer()
     else:
         raise NotImplementedError
 

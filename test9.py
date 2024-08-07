@@ -36,8 +36,14 @@ def add2():
     from IPython import embed; embed(using=False); os._exit(0)
 
 
+def add3():
+
+    a1 = torch.rsqrt(torch.Tensor([2]))
+
+    from IPython import embed; embed(using=False); os._exit(0)
+
 if __name__ == '__main__':
 
     # add()
 
-    add2()
+    add3()

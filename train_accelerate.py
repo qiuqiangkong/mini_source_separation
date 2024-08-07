@@ -1,9 +1,16 @@
 import argparse
+import os
+import random
 from pathlib import Path
+from typing import Union
 
+import librosa
+import museval
+import numpy as np
+from accelerate import Accelerator
 import torch
 import torch.optim as optim
-from accelerate import Accelerator
+from torch import nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -11,7 +18,9 @@ import wandb
 
 wandb.require("core")
 
+from data.audio import load
 from data.musdb18hq import MUSDB18HQ
+from data.crops import RandomCrop
 from train import InfiniteSampler, get_model, l1_loss, validate, warmup_lambda
 
 
@@ -51,9 +60,8 @@ def train(args):
         root=root,
         split="train",
         sr=sr,
-        mono=mono,
-        clip_duration=clip_duration,
-        remix_prob=remix_prob,
+        crop=RandomCrop(clip_duration=clip_duration, end_pad=0.),
+        remix_prob=remix_prob
     )
 
     # Samplers

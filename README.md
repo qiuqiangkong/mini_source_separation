@@ -34,7 +34,7 @@ dataset_root (30 GB)
 git clone https://github.com/qiuqiangkong/mini_mss
 
 # Install Python environment
-conda create --name mss python=3.8
+conda create --name mss python=3.9
 
 conda activate mss
 
