@@ -8,7 +8,6 @@ import numpy as np
 from rotary_embedding_torch import RotaryEmbedding
 
 from models.fourier import Fourier
-from models.attend import Attend
 
 
 FREQ_BINS_PER_BANDS = [
@@ -21,20 +20,6 @@ FREQ_BINS_PER_BANDS = [
   48, 48, 48, 48, 48, 48, 48, 48,
   128, 129,
 ]
-
-
-class ModelArgs:
-    n_embd: int = 512
-    n_layers: int = 6
-    n_heads: int = 16
-
-
-class ModelArgs:
-    n_fft: int = 2048
-    hop_length: int = 441
-    n_embd: int = 512
-    depth: int = 6
-    n_heads: int = 16
 
 
 class BSRoformer(Fourier):
