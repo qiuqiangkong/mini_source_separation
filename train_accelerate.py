@@ -28,22 +28,22 @@ def train(args):
 
     # Arguments
     model_name = args.model_name
+    clip_duration = args.clip_duration
+    batch_size = args.batch_size
+    lr = float(args.lr)
 
     # Default parameters
-    sr = 44100
+    sr = 44100 
     mono = False
-    clip_duration = 2.
-    remix_prob = 0.8
-    batch_size = 16
     num_workers = 16
     pin_memory = True
-    learning_rate = 1e-3
     use_scheduler = True
     test_step_frequency = 5000
-    save_step_frequency = 5000
+    save_step_frequency = 10000
     evaluate_num = 10
-    training_steps = 100000
+    training_steps = 1000000
     wandb_log = True
+    
 
     filename = Path(__file__).stem
     source_types = MUSDB18HQ.source_types
@@ -52,8 +52,13 @@ def train(args):
     
     root = "/datasets/musdb18hq"
 
+
     if wandb_log:
-        wandb.init(project="mini_source_separation")
+        config = vars(args) | {
+            "filename": filename, 
+            "devices_num": torch.cuda.device_count()
+        }
+        wandb.init(project="mini_source_separation", config=config)
 
     # Training dataset
     train_dataset = MUSDB18HQ(
@@ -61,7 +66,6 @@ def train(args):
         split="train",
         sr=sr,
         crop=RandomCrop(clip_duration=clip_duration, end_pad=0.),
-        remix_prob=remix_prob
     )
 
     # Samplers
@@ -80,7 +84,7 @@ def train(args):
     model = get_model(model_name)
 
     # Optimizer
-    optimizer = optim.AdamW(model.parameters(), lr=learning_rate)
+    optimizer = optim.AdamW(model.parameters(), lr=lr)
 
     if use_scheduler:
         scheduler = optim.lr_scheduler.LambdaLR(optimizer=optimizer, lr_lambda=warmup_lambda)
@@ -115,7 +119,7 @@ def train(args):
         # Learning rate scheduler (optional)
         if use_scheduler:
             scheduler.step()
-
+        
         # Evaluate
         if step % test_step_frequency == 0:
 
@@ -159,7 +163,7 @@ def train(args):
                         },
                         step=step
                     )
-
+        
         # Save model.
         if step % save_step_frequency == 0:
 
@@ -185,6 +189,9 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_name', type=str, default="UNet")
+    parser.add_argument('--clip_duration', type=float, default=2.0)
+    parser.add_argument('--batch_size', type=int, default=16)
+    parser.add_argument('--lr', default=0.001)
     args = parser.parse_args()
 
     train(args)

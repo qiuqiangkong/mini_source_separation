@@ -43,7 +43,8 @@ class MUSDB18HQ(Dataset):
 
     url = "https://zenodo.org/records/3338373"
 
-    duration = 35359.56  # Dataset duration (s), including training, valdiation, and testing
+    duration = 35359.56  # Dataset duration (s), 9.8 hours, including training, 
+    # valdiation, and testing
 
     source_types = ["bass", "drums", "other", "vocals"]
     acc_source_types = ["bass", "drums", "other"]
@@ -53,8 +54,9 @@ class MUSDB18HQ(Dataset):
         root: str = None, 
         split: ["train", "test"] = "train",
         sr: int = 44100,
-        crop: Optional[callable] = RandomCrop(clip_duration=2.),
-        remix_prob: float = 0.5,  # Remix different stems probability (between 0 and 1)
+        crop: callable = RandomCrop(clip_duration=2.),
+        target_source_type: Optional[str] = "vocals",
+        remix: dict = {"no_remix": 0.1, "half_remix": 0.4, "full_remix": 0.5},
         transform: Optional[callable] = None,
     ):
 
@@ -62,13 +64,15 @@ class MUSDB18HQ(Dataset):
         self.split = split
         self.sr = sr
         self.crop = crop
-        self.remix_prob = remix_prob
+        self.target_source_type = target_source_type
+        self.remix_types = list(remix.keys())
+        self.remix_weights = list(remix.values())
         self.transform = transform
+
+        assert np.sum(self.remix_weights) == 1.0
         
         if not Path(self.root).exists():
             raise Exception("Please download the MUSDB18HQ dataset from {}".format(MUSDB18HQ.url))
-
-        assert 0. <= self.remix_prob <= 1.
 
         self.audios_dir = Path(self.root, self.split)
         self.audio_names = sorted(os.listdir(self.audios_dir))
@@ -79,41 +83,38 @@ class MUSDB18HQ(Dataset):
         acc_source_types = MUSDB18HQ.acc_source_types
 
         audio_name = self.audio_names[index]
-    
-        # Sample a bool value indicating whether to remix or not
-        remix = random.choices(
-            population=(True, False), 
-            weights=(self.remix_prob, 1. - self.remix_prob)
-        )[0]
-
-        # Get shared start time
-        audio_path = Path(self.audios_dir, audio_name, "vocals.wav")
-        audio_duration = librosa.get_duration(path=audio_path)
-        shared_start_time, clip_duration = self.crop(audio_duration=audio_duration)
 
         data = {
             "dataset_name": "MUSDB18HQ",
-            "audio_path": str(audio_path),
+            "audio_path": str(Path(self.audios_dir, audio_name)),
         }
+
+        remix_type = random.choices(
+            population=self.remix_types,
+            weights=self.remix_weights
+        )[0]
+
+        audio_path = Path(self.audios_dir, audio_name, "mixture.wav")
+        audio_duration = librosa.get_duration(path=audio_path)
+
+        start_time_dict = self.get_start_times(
+            audio_duration=audio_duration, 
+            source_types=source_types, 
+            target_source_type=self.target_source_type,
+            remix_type=remix_type
+        )
 
         for source_type in source_types:
 
             audio_path = Path(self.audios_dir, audio_name, "{}.wav".format(source_type))
-            
-            if remix:
-                # If remix, then each stem will has a different start time
-                audio_duration = librosa.get_duration(path=audio_path)
-                start_time, _ = self.crop(audio_duration=audio_duration)
-            else:
-                # If not remix, all stems will share the same start time
-                start_time = shared_start_time
+            start_time = start_time_dict[source_type]
 
             # Load audio
             audio = load(
                 path=audio_path, 
                 sr=self.sr, 
                 offset=start_time, 
-                duration=clip_duration
+                duration=self.crop.clip_duration
             )
             # shape: (channels, audio_samples)
 
@@ -138,55 +139,42 @@ class MUSDB18HQ(Dataset):
         audios_num = len(self.audio_names)
 
         return audios_num
-    
 
-if __name__ == "__main__":
-    r"""Example.
-    """
-    
-    from torch.utils.data import DataLoader
+    def get_start_times(
+        self, 
+        audio_duration: float, 
+        source_types: str, 
+        target_source_type: str,
+        remix_type: str
+    ) -> dict:
 
-    root = "/datasets/musdb18hq"
+        start_time_dict = {}
 
-    sr = 44100
+        if remix_type == "no_remix":
+            
+            start_time1, _ = self.crop(audio_duration=audio_duration)
 
-    dataset = MUSDB18HQ(
-        root=root,
-        split="train",
-        sr=sr,
-        crop=RandomCrop(clip_duration=2., end_pad=0.),
-    )
+            for source_type in source_types:
+                start_time_dict[source_type] = start_time1
 
-    dataloader = DataLoader(dataset=dataset, batch_size=4)
+        elif remix_type == "half_remix":
+            
+            start_time1, _ = self.crop(audio_duration=audio_duration)
+            start_time2, _ = self.crop(audio_duration=audio_duration)
 
-    for data in dataloader:
+            for source_type in source_types:
+                if source_type == target_source_type:
+                    start_time_dict[source_type] = start_time1
+                else:
+                    start_time_dict[source_type] = start_time2
 
-        n = 0
-        audio_path = data["audio_path"][n]
-        vocals_start_time = data["vocals_start_time"][n].cpu().numpy()
-        bass_start_time = data["bass_start_time"][n].cpu().numpy()
-        drums_start_time = data["drums_start_time"][n].cpu().numpy()
-        other_start_time = data["other_start_time"][n].cpu().numpy()
-        bass = data["bass"][n].cpu().numpy()
-        drums = data["drums"][n].cpu().numpy()
-        other = data["other"][n].cpu().numpy()
-        vocals = data["vocals"][n].cpu().numpy()
-        accompaniment = data["accompaniment"][n].cpu().numpy()
-        mixture = data["mixture"][n].cpu().numpy()
-        break
+        elif remix_type == "full_remix":
 
-    # ------ Visualize ------
-    print("audio_path:", audio_path)
-    print("vocals_start_time:", vocals_start_time)
-    print("bass_start_time:", bass_start_time)
-    print("drums_start_time:", drums_start_time)
-    print("other_start_time:", other_start_time)
-    print("mixture:", mixture.shape)
+            for source_type in source_types:
+                start_time, _ = self.crop(audio_duration=audio_duration)
+                start_time_dict[source_type] = start_time
 
-    import soundfile
-    soundfile.write(file="out_bass.wav", data=bass.T, samplerate=sr)
-    soundfile.write(file="out_drums.wav", data=drums.T, samplerate=sr)
-    soundfile.write(file="out_other.wav", data=other.T, samplerate=sr)
-    soundfile.write(file="out_vocals.wav", data=vocals.T, samplerate=sr)
-    soundfile.write(file="out_acc.wav", data=accompaniment.T, samplerate=sr)
-    soundfile.write(file="out_mixture.wav", data=mixture.T, samplerate=sr)
+        else:
+            raise NotImplementedError
+
+        return start_time_dict

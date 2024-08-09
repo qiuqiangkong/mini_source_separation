@@ -9,7 +9,7 @@ from tqdm import tqdm
 import museval
 import argparse
 
-from train import separate
+from train import get_model, separate
 
 
 def inference(args):
@@ -27,7 +27,7 @@ def inference(args):
     # Load checkpoint
     checkpoint_path = Path("checkpoints", "train", model_name, "latest.pth")
 
-    model = UNet()
+    model = get_model(model_name)
     model.load_state_dict(torch.load(checkpoint_path))
     model.to(device)
 

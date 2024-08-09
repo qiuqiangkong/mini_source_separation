@@ -10,7 +10,7 @@ from rotary_embedding_torch import RotaryEmbedding
 from models.fourier import Fourier
 
 
-FREQ_BINS_PER_BANDS = [
+FREQ_NUM_PER_BANDS = [
   2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
   2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
   2, 2, 2, 2,
@@ -27,9 +27,9 @@ class BSRoformer(Fourier):
         self,
         n_fft: int = 2048,
         hop_length: int = 441,
-        depth: int = 6,
-        dim: int = 512,
-        n_heads: int = 16
+        depth: int = 12,
+        dim: int = 384,
+        n_heads: int = 12
     ):
         super().__init__(n_fft, hop_length)
 
@@ -39,11 +39,11 @@ class BSRoformer(Fourier):
 
         self.cmplx_num = 2
         self.audio_channels = 2
-        self.time_bins = 4
+        self.time_stacks = 4
         
         self.head_dim = self.dim // self.n_heads
 
-        band_input_dims = self.cmplx_num * self.audio_channels * self.time_bins * np.array(FREQ_BINS_PER_BANDS)
+        band_input_dims = self.cmplx_num * self.audio_channels * self.time_stacks * np.array(FREQ_NUM_PER_BANDS)
         band_input_dims = list(band_input_dims)
 
         self.band_split = BandSplit(
@@ -75,11 +75,21 @@ class BSRoformer(Fourier):
 
         Outputs:
             output: (batch_size, channels_num, samples_num)
+
+        Constants:
+            b: batch_size
+            c: channels_num=2
+            T: time_steps
+            F: n_fft // 2 + 1
+            m: time_stacks
+            t: time_bins
+            f: freq_bins
+            z: complex_num=2
         """
 
         # Complex spectrum.
         complex_sp = self.stft(mixture)
-        # shape: (B, C, T, F)
+        # shape: (b, c, T, F)
 
         batch_size = complex_sp.shape[0]
         time_steps = complex_sp.shape[2]
@@ -87,36 +97,41 @@ class BSRoformer(Fourier):
         x = self.process_image(complex_sp)
 
         x = torch.view_as_real(x)
-        # shape: (B, C, T, F, Z)
+        # shape: (b, c, T, F, z)
 
-        x = rearrange(x, 'b c (t m) f z -> b t (m f c z)', m=self.time_bins)
+        x = rearrange(x, 'b c (t m) F z -> b t (m F c z)', m=self.time_stacks)
+        # shape: (b, t, m*F*c*z)
 
         x = self.band_split(x)
-        # shape: (b, k, t, d)
+        # shape: (b, t, f, d)
 
         for t_transformer, f_transformer in self.transformers:
 
-            x = rearrange(x, 'b k t d -> (b k) t d')
+            x = rearrange(x, 'b t f d -> (b f) t d')
 
             x = t_transformer(x)
 
-            x = rearrange(x, '(b k) t d -> (b t) k d', b=batch_size)
+            x = rearrange(x, '(b f) t d -> (b t) f d', b=batch_size)
 
             x = f_transformer(x)
 
-            x = rearrange(x, '(b t) k d -> b t k d', b=batch_size)
+            x = rearrange(x, '(b t) f d -> b t f d', b=batch_size)
 
         x = self.band_combine(x)
+        # shape: (b, t, m*F*c*z)
 
-        x = rearrange(x, 'b t (m f c z) -> b c (m t) f z', m=self.time_bins, c=self.audio_channels, z=self.cmplx_num)
+        x = rearrange(x, 'b t (m F c z) -> b c (t m) F z', m=self.time_stacks, c=self.audio_channels, z=self.cmplx_num)
+        # (b, c, T, F, z)
         
-        x = torch.view_as_complex(x) 
+        x = torch.view_as_complex(x)
+        # (b, c, T, F)
 
         mask = self.unprocess_image(x, time_steps)
 
         sep_stft = mask * complex_sp
 
         output = self.istft(sep_stft)
+        # (b, c, samples_num)
 
         return output
 
@@ -125,7 +140,7 @@ class BSRoformer(Fourier):
         B, C, T, Freq = x.shape
 
         pad_len = (
-            int(np.ceil(T / self.time_bins)) * self.time_bins
+            int(np.ceil(T / self.time_stacks)) * self.time_stacks
             - T
         )
         x = F.pad(x, pad=(0, 0, 0, pad_len))
@@ -133,14 +148,6 @@ class BSRoformer(Fourier):
         return x
 
     def unprocess_image(self, x, time_steps):
-        """Patch a spectrum to the original shape. E.g.,
-        
-        Args:
-            x: E.g., (B, C, 208, 1024)
-        
-        Outpus:
-            output: E.g., (B, C, 201, 1025)
-        """
 
         output = x[:, :, 0 : time_steps, :]
 
@@ -191,7 +198,14 @@ class BandSplit(Module):
             self.band_nets.append(net)
 
     def forward(self, x):
+        r"""
 
+        Args:
+            x: (m, t, m*F*c*z)
+
+        Outputs:
+            output: (m, t, f, d)
+        """
         band_xs = torch.split(x, split_size_or_sections=self.band_input_dims, dim=-1)
 
         outputs = []
@@ -199,7 +213,7 @@ class BandSplit(Module):
             output = net(x)
             outputs.append(output)
 
-        return torch.stack(outputs, dim=1)
+        return torch.stack(outputs, dim=2)
 
 
 class BandCombine(Module):
@@ -233,8 +247,16 @@ class BandCombine(Module):
             self.band_nets.append(net)
 
     def forward(self, x):
+        r"""
 
-        band_xs = torch.unbind(x, dim=1)
+        Args:
+            x: (b, t, f, d)
+
+        Outputs:
+            output: (b, t, m*F*c*z)
+        """
+        
+        band_xs = torch.unbind(x, dim=2)
 
         outputs = []
         for x, net in zip(band_xs, self.band_nets):

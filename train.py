@@ -2,7 +2,7 @@ import argparse
 import os
 import random
 from pathlib import Path
-from typing import Union
+from typing import Optional, Union
 
 import librosa
 import museval
@@ -26,21 +26,20 @@ def train(args):
 
     # Arguments
     model_name = args.model_name
+    clip_duration = args.clip_duration
+    batch_size = args.batch_size
+    lr = float(args.lr)
 
     # Default parameters
     sr = 44100
     mono = False
-    clip_duration = 2.
-    remix_prob = 0.8
-    batch_size = 16
     num_workers = 16
     pin_memory = True
-    learning_rate = 1e-3
     use_scheduler = True
     test_step_frequency = 5000
-    save_step_frequency = 5000
-    evaluate_num = 2
-    training_steps = 100000
+    save_step_frequency = 10000
+    evaluate_num = 10
+    training_steps = 1000000
     wandb_log = True
     device = "cuda"
 
@@ -52,7 +51,10 @@ def train(args):
     root = "/datasets/musdb18hq"
 
     if wandb_log:
-        wandb.init(project="mini_source_separation")
+        config = vars(args) | {
+            "filename": filename,
+        }
+        wandb.init(project="mini_source_separation", config=config)
 
     # Training dataset
     train_dataset = MUSDB18HQ(
@@ -60,7 +62,6 @@ def train(args):
         split="train",
         sr=sr,
         crop=RandomCrop(clip_duration=clip_duration, end_pad=0.),
-        remix_prob=remix_prob
     )
 
     # Samplers
@@ -80,7 +81,7 @@ def train(args):
     model.to(device)
 
     # Optimizer
-    optimizer = optim.AdamW(model.parameters(), lr=learning_rate)
+    optimizer = optim.AdamW(model.parameters(), lr=lr)
 
     if use_scheduler:
         scheduler = optim.lr_scheduler.LambdaLR(optimizer=optimizer, lr_lambda=warmup_lambda)
@@ -109,7 +110,7 @@ def train(args):
         # Learning rate scheduler (optional)
         if use_scheduler:
             scheduler.step()
-
+        
         # Evaluate
         if step % test_step_frequency == 0:
 
@@ -215,7 +216,8 @@ def validate(
     target_source_type: str, 
     batch_size: int, 
     model: nn.Module, 
-    evaluate_num: int
+    evaluate_num: Optional[int],
+    verbose: bool = False
 ) -> float:
     r"""Calculate SDR.
     """
@@ -227,7 +229,10 @@ def validate(
 
     all_sdrs = []
 
-    for audio_name in tqdm(audio_names[0 : evaluate_num]):
+    if evaluate_num:
+        audio_names = audio_names[0 : evaluate_num]
+
+    for audio_name in tqdm(audio_names):
 
         data = {}
 
@@ -260,6 +265,9 @@ def validate(
 
         sdr = np.nanmedian(sdrs)
         all_sdrs.append(sdr)
+
+        if verbose:
+            print(audio_name, "{:.2f} dB".format(sdr))
 
     sdr = np.nanmedian(all_sdrs)
 
@@ -338,6 +346,9 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_name', type=str, default="UNet")
+    parser.add_argument('--clip_duration', type=float, default=2.0)
+    parser.add_argument('--batch_size', type=int, default=16)
+    parser.add_argument('--lr', default=0.001)
     args = parser.parse_args()
 
     train(args)
