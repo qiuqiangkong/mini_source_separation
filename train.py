@@ -159,7 +159,6 @@ def train(args):
 
         if step == training_steps:
             break
-        
 
 
 def get_model(model_name):
@@ -168,7 +167,13 @@ def get_model(model_name):
         return UNet()
     elif model_name == "BSRoformer":
         from models.bs_roformer import BSRoformer
-        return BSRoformer()
+        return BSRoformer(
+            depth=12,
+            dim=384,
+            n_heads=12,
+            attn_dropout=0.1,
+            ff_dropout=0.1,
+        )
     else:
         raise NotImplementedError
 
