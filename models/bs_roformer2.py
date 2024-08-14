@@ -22,7 +22,7 @@ FREQ_NUM_PER_BANDS = [
 ]
 
 
-class BSRoformer(Fourier):
+class BSRoformer2(Fourier):
     def __init__(
         self,
         n_fft: int = 2048,
@@ -39,7 +39,7 @@ class BSRoformer(Fourier):
 
         self.cmplx_num = 2
         self.audio_channels = 2
-        self.time_stacks = 4
+        self.time_stacks = 1
         
         self.head_dim = self.dim // self.n_heads
 

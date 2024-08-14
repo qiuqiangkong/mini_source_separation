@@ -171,8 +171,15 @@ def get_model(model_name):
             depth=12,
             dim=384,
             n_heads=12,
-            attn_dropout=0.1,
-            ff_dropout=0.1,
+            # attn_dropout=0.1,
+            # ff_dropout=0.1,
+        )
+    elif model_name == "BSRoformer2":
+        from models.bs_roformer2 import BSRoformer2
+        return BSRoformer2(
+            depth=12,
+            dim=384,
+            n_heads=12,
         )
     else:
         raise NotImplementedError
