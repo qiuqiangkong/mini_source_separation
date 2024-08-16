@@ -3,11 +3,12 @@ import os
 import random
 from pathlib import Path
 from typing import Union
+from datetime import timedelta
 
 import librosa
 import museval
 import numpy as np
-from accelerate import Accelerator
+from accelerate import Accelerator, InitProcessGroupKwargs
 import torch
 import torch.optim as optim
 from torch import nn
@@ -90,7 +91,9 @@ def train(args):
         scheduler = optim.lr_scheduler.LambdaLR(optimizer=optimizer, lr_lambda=warmup_lambda)
 
     # Prepare for multiprocessing
-    accelerator = Accelerator()
+    # accelerator = Accelerator()
+    process_group_kwargs = InitProcessGroupKwargs(timeout=timedelta(seconds=7200))
+    accelerator = Accelerator(kwargs_handlers=[process_group_kwargs])
 
     model, optimizer, train_dataloader, scheduler = accelerator.prepare(
         model, optimizer, train_dataloader, scheduler)
