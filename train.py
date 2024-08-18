@@ -168,11 +168,10 @@ def get_model(model_name):
     elif model_name == "BSRoformer":
         from models.bs_roformer import BSRoformer
         return BSRoformer(
+            time_stacks=4,
             depth=12,
             dim=384,
             n_heads=12,
-            # attn_dropout=0.1,
-            # ff_dropout=0.1,
         )
     elif model_name == "BSRoformer2":
         from models.bs_roformer2 import BSRoformer2
