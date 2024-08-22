@@ -16,19 +16,18 @@ def inference(args):
 
     # Arguments
     model_name = args.model_name
+    ckpt_path = args.ckpt_path
+    clip_duration = args.clip_duration
+    batch_size = args.batch_size
 
     # Default parameters
     sr = 44100
-    segment_seconds = 2.
-    clip_samples = round(segment_seconds * sr)
-    batch_size = 16
+    clip_samples = round(clip_duration * sr)
     device = "cuda"
 
-    # Load checkpoint
-    checkpoint_path = Path("checkpoints", "train", model_name, "latest.pth")
-
+    # Load model
     model = get_model(model_name)
-    model.load_state_dict(torch.load(checkpoint_path))
+    model.load_state_dict(torch.load(ckpt_path))
     model.to(device)
 
     # Load audio. Change this path to your favorite song.
@@ -55,6 +54,9 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_name', type=str, default="UNet")
+    parser.add_argument('--ckpt_path', type=str, default="./train/UNet/latest.pth")
+    parser.add_argument('--clip_duration', type=float, default=2.0)
+    parser.add_argument('--batch_size', type=int, default=16)
     args = parser.parse_args()
 
     inference(args)

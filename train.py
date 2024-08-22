@@ -168,7 +168,7 @@ def get_model(model_name):
     elif model_name == "BSRoformer":
         from models.bs_roformer import BSRoformer
         return BSRoformer(
-            time_stacks=4,
+            time_stacks=1,
             depth=12,
             dim=384,
             n_heads=12,
@@ -176,6 +176,13 @@ def get_model(model_name):
     elif model_name == "BSRoformer2":
         from models.bs_roformer2 import BSRoformer2
         return BSRoformer2(
+            depth=12,
+            dim=384,
+            n_heads=12,
+        )
+    elif model_name == "BSRoformer3":
+        from models.bs_roformer3 import BSRoformer3
+        return BSRoformer3(
             depth=12,
             dim=384,
             n_heads=12,

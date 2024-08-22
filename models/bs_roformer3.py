@@ -18,20 +18,21 @@ FREQ_NUM_PER_BANDS = [
   12, 12, 12, 12, 12, 12, 12, 12,
   24, 24, 24, 24, 24, 24, 24, 24,
   48, 48, 48, 48, 48, 48, 48, 48,
-  128, 129,
+  128,# 129,
 ]
+FREQ_NUM_PER_BANDS = [e * 4 for e in FREQ_NUM_PER_BANDS]
+FREQ_NUM_PER_BANDS.append(513)
 
 
-class BSRoformer(Fourier):
+class BSRoformer3(Fourier):
     def __init__(
         self,
-        n_fft: int = 2048,
-        hop_length: int = 441,
+        n_fft: int = 2048 * 4,
+        hop_length: int = 441 * 4,
+        time_stacks: int = 1,
         depth: int = 12,
         dim: int = 384,
-        n_heads: int = 12,
-        attn_dropout = 0.,
-        ff_dropout = 0.,
+        n_heads: int = 12
     ):
         super().__init__(n_fft, hop_length)
 
@@ -41,9 +42,7 @@ class BSRoformer(Fourier):
 
         self.cmplx_num = 2
         self.audio_channels = 2
-        self.time_stacks = 4
-        self.attn_dropout = attn_dropout
-        self.ff_dropout = ff_dropout
+        self.time_stacks = time_stacks
         
         self.head_dim = self.dim // self.n_heads
 
@@ -53,7 +52,11 @@ class BSRoformer(Fourier):
         self.band_split = BandSplit(
             band_input_dims=band_input_dims,
             dim=dim,
-            dropout=ff_dropout
+        )
+
+        self.band_combine = BandCombine(
+            dim=dim,
+            band_output_dims=band_input_dims
         )
 
         time_rotary_embed = RotaryEmbedding(dim=self.head_dim)
@@ -63,27 +66,9 @@ class BSRoformer(Fourier):
 
         for _ in range(self.depth):
             self.transformers.append(nn.ModuleList([
-                TransformerBlock(
-                    dim=self.dim, 
-                    n_heads=self.n_heads, 
-                    attn_dropout=self.attn_dropout,
-                    ff_dropout=self.ff_dropout,
-                    rotary_embed=time_rotary_embed,
-                ),
-                TransformerBlock(
-                    dim=self.dim, 
-                    n_heads=self.n_heads, 
-                    attn_dropout=self.attn_dropout,
-                    ff_dropout=self.ff_dropout,
-                    rotary_embed=freq_rotary_embed
-                )
+                TransformerBlock(dim=self.dim, n_heads=self.n_heads, rotary_embed=time_rotary_embed),
+                TransformerBlock(dim=self.dim, n_heads=self.n_heads, rotary_embed=freq_rotary_embed)
             ]))
-
-        self.band_combine = BandCombine(
-            dim=dim,
-            band_output_dims=band_input_dims,
-            dropout=ff_dropout
-        )
         
     def forward(self, mixture):
         """Separation model.
@@ -191,7 +176,6 @@ class BandSplit(Module):
         self,
         band_input_dims: list[int],
         dim: int,
-        dropout: float
     ):
         super().__init__()
         
@@ -205,17 +189,13 @@ class BandSplit(Module):
                 # No Norm for the first layer
                 nn.Linear(in_dim, dim),
                 nn.GELU(),
-                nn.Dropout(dropout),
 
                 RMSNorm(dim),
                 nn.Linear(dim, dim),
                 nn.GELU(),
-                nn.Dropout(dropout),
 
                 RMSNorm(dim),
-                nn.Linear(dim, dim),
-                # No act
-                nn.Dropout(dropout),
+                nn.Linear(dim, dim)
             )
 
             self.band_nets.append(net)
@@ -245,7 +225,6 @@ class BandCombine(Module):
         self,
         dim: int,
         band_output_dims: list[int],
-        dropout: float
     ):
         super().__init__()
         
@@ -259,17 +238,13 @@ class BandCombine(Module):
                 RMSNorm(dim),
                 nn.Linear(dim, dim),
                 nn.GELU(),
-                nn.Dropout(dropout),
 
                 RMSNorm(dim),
                 nn.Linear(dim, dim),
                 nn.GELU(),
-                nn.Dropout(dropout),
 
                 RMSNorm(dim),
                 nn.Linear(dim, out_dim)
-                # No act
-                # No dropout
             )
 
             self.band_nets.append(net)
@@ -295,31 +270,23 @@ class BandCombine(Module):
 
 
 class MLP(nn.Module):
-    def __init__(self, dim: int, dropout: float) -> None:
+    def __init__(self, dim: int) -> None:
         super().__init__()
 
-        self.net = nn.Sequential(
-            nn.Linear(dim, 4 * dim, bias=False),
-            nn.GELU(),
-            nn.Dropout(dropout),
-            nn.Linear(4 * dim, dim, bias=False),
-            nn.Dropout(dropout),
-        )
+        self.fc1 = nn.Linear(dim, 4 * dim, bias=False)
+        self.gelu = nn.GELU()
+        self.fc2 = nn.Linear(4 * dim, dim, bias=False)
 
     def forward(self, x):
-        x = self.net(x)
+        x = self.fc1(x)
+        x = self.gelu(x)
+        x = self.fc2(x)
         return x
 
 
 class Attention(nn.Module):
 
-    def __init__(
-        self, 
-        dim: int, 
-        n_heads: int, 
-        dropout: float,
-        rotary_embed: RotaryEmbedding
-    ):
+    def __init__(self, dim: int, n_heads: int, rotary_embed: RotaryEmbedding):
         super().__init__()
         
         assert dim % n_heads == 0
@@ -332,11 +299,7 @@ class Attention(nn.Module):
         assert self.flash, "Must have flash attention."
         
         self.c_attn = nn.Linear(dim, 3 * dim, bias=False)
-        
-        self.c_proj = nn.Sequential(
-            nn.Linear(dim, dim, bias=False),
-            nn.Dropout(dropout)
-        )
+        self.c_proj = nn.Linear(dim, dim, bias=False)
         
     def forward(self, x):
         r"""
@@ -370,14 +333,7 @@ class Attention(nn.Module):
 
 
 class TransformerBlock(nn.Module):
-    def __init__(
-        self, 
-        dim: int, 
-        n_heads: int, 
-        attn_dropout: float,
-        ff_dropout: float,
-        rotary_embed: RotaryEmbedding
-    ):
+    def __init__(self, dim: int, n_heads: int, rotary_embed: RotaryEmbedding):
         
         super().__init__()
         self.dim = dim
@@ -385,8 +341,8 @@ class TransformerBlock(nn.Module):
         
         self.att_norm = RMSNorm(dim)
         self.ffn_norm = RMSNorm(dim)
-        self.att = Attention(dim=dim, n_heads=n_heads, rotary_embed=rotary_embed, dropout=attn_dropout)
-        self.mlp = MLP(dim=dim, dropout=ff_dropout)
+        self.att = Attention(dim=dim, n_heads=n_heads, rotary_embed=rotary_embed)
+        self.mlp = MLP(dim=dim)
         
 
     def forward(

@@ -10,7 +10,7 @@ from train import get_model, validate
 def evaluate(args):
 
     model_name = args.model_name
-    checkpoint_path = args.checkpoint_path
+    ckpt_path = args.ckpt_path
     clip_duration = args.clip_duration
     batch_size = args.batch_size
     evaluate_num = None
@@ -22,7 +22,7 @@ def evaluate(args):
     source_types = MUSDB18HQ.source_types
 
     model = get_model(model_name)
-    model.load_state_dict(torch.load(checkpoint_path))
+    model.load_state_dict(torch.load(ckpt_path))
     model.to(device)
 
     sdr = validate(
@@ -46,8 +46,8 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_name', type=str, default="UNet")
-    parser.add_argument('--checkpoint_path', type=str, required=True)
-    parser.add_argument('--clip_duration', type=float, required=True)
+    parser.add_argument('--ckpt_path', type=str, default="./train/UNet/latest.pth")
+    parser.add_argument('--clip_duration', type=float, default=2.0)
     parser.add_argument('--batch_size', type=int, default=16)
     args = parser.parse_args()
 
