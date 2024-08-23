@@ -27,6 +27,7 @@ class BSRoformer(Fourier):
         self,
         n_fft: int = 2048,
         hop_length: int = 441,
+        time_stacks: int = 4,
         depth: int = 12,
         dim: int = 384,
         n_heads: int = 12
@@ -39,7 +40,7 @@ class BSRoformer(Fourier):
 
         self.cmplx_num = 2
         self.audio_channels = 2
-        self.time_stacks = 4
+        self.time_stacks = time_stacks
         
         self.head_dim = self.dim // self.n_heads
 
