@@ -187,6 +187,20 @@ def get_model(model_name):
             dim=384,
             n_heads=12,
         )
+    elif model_name == "BSRoformer4a":
+        from models.bs_roformer4 import BSRoformer4a
+        return BSRoformer4a(
+            depth=12,
+            dim=384,
+            n_heads=12,
+        )
+    elif model_name == "BSRoformer4b":
+        from models.bs_roformer4 import BSRoformer4b
+        return BSRoformer4b(
+            depth=12,
+            dim=384,
+            n_heads=12,
+        )
     else:
         raise NotImplementedError
 
