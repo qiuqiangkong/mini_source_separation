@@ -23,6 +23,7 @@ FREQ_NUM_PER_BANDS = [
 ]
 
 
+'''
 class BSRoformer4a(Fourier):
     def __init__(
         self,
@@ -99,7 +100,11 @@ class BSRoformer4a(Fourier):
         x = self.process_image(complex_sp)
 
         x = self.complex_to_polar(x)
+        x[..., 0] *= 100
         # shape: (b, c, T, F, z)
+
+        # from IPython import embed; embed(using=False); os._exit(0)
+
 
         x = rearrange(x, 'b c (t m) F z -> b t (m F c z)', m=self.time_stacks)
         # shape: (b, t, m*F*c*z)
@@ -125,6 +130,7 @@ class BSRoformer4a(Fourier):
         x = rearrange(x, 'b t (m F c z) -> b c (t m) F z', m=self.time_stacks, c=self.audio_channels, z=self.cmplx_num)
         # (b, c, T, F, z)
         
+        x[..., 0] /= 100
         x = self.polar_to_complex(x)
         # (b, c, T, F)
 
@@ -164,6 +170,167 @@ class BSRoformer4a(Fourier):
         mag = x[..., 0]
         phase = x[..., 1]
         output = torch.polar(abs=mag, angle=phase)
+        return output
+'''
+
+class BSRoformer4a(Fourier):
+    def __init__(
+        self,
+        n_fft: int = 2048,
+        hop_length: int = 441,
+        time_stacks: int = 4,
+        depth: int = 12,
+        dim: int = 384,
+        n_heads: int = 12
+    ):
+        super().__init__(n_fft, hop_length)
+
+        self.depth = depth
+        self.dim = dim
+        self.n_heads = n_heads
+
+        self.cmplx_num = 2
+        self.audio_channels = 2
+        self.time_stacks = time_stacks
+        
+        self.head_dim = self.dim // self.n_heads
+
+        band_input_dims = self.cmplx_num * self.audio_channels * self.time_stacks * np.array(FREQ_NUM_PER_BANDS)
+        band_input_dims = list(band_input_dims)
+
+        self.band_split = BandSplit(
+            band_input_dims=band_input_dims,
+            dim=dim,
+        )
+
+        self.band_combine = BandCombine(
+            dim=dim,
+            band_output_dims=band_input_dims
+        )
+
+        time_rotary_embed = RotaryEmbedding(dim=self.head_dim)
+        freq_rotary_embed = RotaryEmbedding(dim=self.head_dim)
+
+        self.transformers = ModuleList([])
+
+        for _ in range(self.depth):
+            self.transformers.append(nn.ModuleList([
+                TransformerBlock(dim=self.dim, n_heads=self.n_heads, rotary_embed=time_rotary_embed),
+                TransformerBlock(dim=self.dim, n_heads=self.n_heads, rotary_embed=freq_rotary_embed)
+            ]))
+        
+    def forward(self, mixture):
+        """Separation model.
+
+        Args:
+            mixture: (batch_size, channels_num, samples_num)
+
+        Outputs:
+            output: (batch_size, channels_num, samples_num)
+
+        Constants:
+            b: batch_size
+            c: channels_num=2
+            T: time_steps
+            F: n_fft // 2 + 1
+            m: time_stacks
+            t: time_bins
+            f: freq_bins
+            z: complex_num=2
+        """
+
+        # Complex spectrum.
+        complex_sp = self.stft(mixture)
+        # shape: (b, c, T, F)
+
+        batch_size = complex_sp.shape[0]
+        time_steps = complex_sp.shape[2]
+
+        x = self.process_image(complex_sp)
+
+        
+        x = self.complex_to_polar(x)
+        # x[..., 0] *= 100
+        # x[..., 1] = x[..., 0]
+        # shape: (b, c, T, F, z)
+        
+        # x = torch.view_as_real(x)
+
+        # from IPython import embed; embed(using=False); os._exit(0)
+
+
+        x = rearrange(x, 'b c (t m) F z -> b t (m F c z)', m=self.time_stacks)
+        # shape: (b, t, m*F*c*z)
+
+        x = self.band_split(x)
+        # shape: (b, t, f, d)
+
+        for t_transformer, f_transformer in self.transformers:
+
+            x = rearrange(x, 'b t f d -> (b f) t d')
+
+            x = t_transformer(x)
+
+            x = rearrange(x, '(b f) t d -> (b t) f d', b=batch_size)
+
+            x = f_transformer(x)
+
+            x = rearrange(x, '(b t) f d -> b t f d', b=batch_size)
+
+        x = self.band_combine(x)
+        # shape: (b, t, m*F*c*z)
+
+        x = rearrange(x, 'b t (m F c z) -> b c (t m) F z', m=self.time_stacks, c=self.audio_channels, z=self.cmplx_num)
+        # (b, c, T, F, z)
+
+        
+        # x[..., 0] /= 100
+        x[..., 0] = torch.relu(x[..., 0]) 
+        # x[..., 1] = 0
+        x = self.polar_to_complex(x) 
+        # (b, c, T, F)
+        
+
+        # x = torch.view_as_complex(x)
+
+        mask = self.unprocess_image(x, time_steps)
+
+        x = complex_sp * mask
+
+        output = self.istft(x)
+        # (b, c, samples_num)
+
+        return output
+
+    def process_image(self, x):
+
+        B, C, T, Freq = x.shape
+
+        pad_len = (
+            int(np.ceil(T / self.time_stacks)) * self.time_stacks
+            - T
+        )
+        x = F.pad(x, pad=(0, 0, 0, pad_len))
+
+        return x
+
+    def unprocess_image(self, x, time_steps):
+
+        output = x[:, :, 0 : time_steps, :]
+
+        return output
+
+    def complex_to_polar(self, x):
+        mag = torch.abs(x)
+        phase = torch.angle(x)
+        output = torch.stack((mag, phase), dim=-1)
+        return output
+
+    def polar_to_complex(self, x):
+        mag = x[..., 0]
+        phase = x[..., 1]
+        output = torch.polar(abs=mag, angle=phase)
+        # from IPython import embed; embed(using=False); os._exit(0)
         return output
 
 
@@ -282,6 +449,7 @@ class BSRoformer4b(Fourier):
 
         x = rearrange(x, 'b (c z) t m F -> b c (t m) F z', c=2, z=2)
 
+        x[..., 0] = torch.relu(x[..., 0]) 
         x = self.polar_to_complex(x)
         # (b, c, T, F)
 
