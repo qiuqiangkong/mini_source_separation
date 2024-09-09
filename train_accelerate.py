@@ -44,7 +44,6 @@ def train(args):
     evaluate_num = 10
     training_steps = 1000000
     wandb_log = True
-    
 
     filename = Path(__file__).stem
     source_types = MUSDB18HQ.source_types
@@ -53,20 +52,13 @@ def train(args):
     
     root = "/datasets/musdb18hq"
 
-
-    if wandb_log:
-        config = vars(args) | {
-            "filename": filename, 
-            "devices_num": torch.cuda.device_count()
-        }
-        wandb.init(project="mini_source_separation", config=config)
-
     # Training dataset
     train_dataset = MUSDB18HQ(
         root=root,
         split="train",
         sr=sr,
         crop=RandomCrop(clip_duration=clip_duration, end_pad=0.),
+        remix={"no_remix": 0.1, "half_remix": 0.4, "full_remix": 0.5}
     )
 
     # Samplers
@@ -91,9 +83,22 @@ def train(args):
         scheduler = optim.lr_scheduler.LambdaLR(optimizer=optimizer, lr_lambda=warmup_lambda)
 
     # Prepare for multiprocessing
-    # accelerator = Accelerator()
     process_group_kwargs = InitProcessGroupKwargs(timeout=timedelta(seconds=7200))
     accelerator = Accelerator(kwargs_handlers=[process_group_kwargs])
+
+    # Logger
+    wandb_log = accelerator.is_local_main_process and wandb_log
+    if wandb_log:
+        config = vars(args) | {
+            "filename": filename, 
+            "devices_num": torch.cuda.device_count()
+        }
+        wandb.init(
+            project="mini_source_separation", 
+            config=config, 
+            name="{} {}".format(model_name, str(train_dataset.remix_weights)),
+            magic=True
+        )
 
     model, optimizer, train_dataloader, scheduler = accelerator.prepare(
         model, optimizer, train_dataloader, scheduler)

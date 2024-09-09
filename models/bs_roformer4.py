@@ -643,6 +643,7 @@ class BandSplitDCT(Module):
         Outputs:
             output: (m, t, f, d)
         """
+        
         band_xs = torch.split(x, split_size_or_sections=FREQ_NUM_PER_BANDS, dim=-1)
 
         band_xs = [dct_2d(x) for x in band_xs]
@@ -651,6 +652,8 @@ class BandSplitDCT(Module):
         band_xs = [rearrange(x, 'b (c z) t m n -> b t (c z m n)', c=2) for x in band_xs]
 
         if False:
+            # from IPython import embed; embed(using=False); os._exit(0)
+            band_xs = [rearrange(x, 'b t (c z m n) -> b (c z) t m n', c=2, z=2, m=4) for x in band_xs]
             tmp = torch.concatenate(band_xs, dim=-1)
             tmp = rearrange(tmp, 'b (c z) t m F -> b c (t m) F z', c=2)
 
@@ -664,6 +667,7 @@ class BandSplitDCT(Module):
 
             b1 = dct_2d(band_xs[0])
             c1 = idct_2d(b1)
+            from IPython import embed; embed(using=False); os._exit(0)
 
         outputs = []
         for x, net in zip(band_xs, self.band_nets):

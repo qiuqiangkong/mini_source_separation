@@ -50,18 +50,13 @@ def train(args):
     
     root = "/datasets/musdb18hq"
 
-    if wandb_log:
-        config = vars(args) | {
-            "filename": filename,
-        }
-        wandb.init(project="mini_source_separation", config=config)
-
     # Training dataset
     train_dataset = MUSDB18HQ(
         root=root,
         split="train",
         sr=sr,
         crop=RandomCrop(clip_duration=clip_duration, end_pad=0.),
+        remix={"no_remix": 0.1, "half_remix": 0.4, "full_remix": 0.5}
     )
 
     # Samplers
@@ -85,6 +80,17 @@ def train(args):
 
     if use_scheduler:
         scheduler = optim.lr_scheduler.LambdaLR(optimizer=optimizer, lr_lambda=warmup_lambda)
+
+    if wandb_log:
+        config = vars(args) | {
+            "filename": filename,
+        }
+        wandb.init(
+            project="mini_source_separation", 
+            config=config, 
+            name="{} {}".format(model_name, str(train_dataset.remix_weights)), 
+            magic=True
+        )
 
     # Create checkpoints directory
     Path(checkpoints_dir).mkdir(parents=True, exist_ok=True)
@@ -197,6 +203,13 @@ def get_model(model_name):
     elif model_name == "BSRoformer4b":
         from models.bs_roformer4 import BSRoformer4b
         return BSRoformer4b(
+            depth=12,
+            dim=384,
+            n_heads=12,
+        )
+    elif model_name == "BSRoformer5a":
+        from models.bs_roformer5 import BSRoformer5a
+        return BSRoformer5a(
             depth=12,
             dim=384,
             n_heads=12,

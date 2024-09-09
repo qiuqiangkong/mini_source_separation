@@ -22,7 +22,7 @@ FREQ_NUM_PER_BANDS = [
 ]
 
 
-class BSRoformer(Fourier):
+class BSRoformer5a(Fourier):
     def __init__(
         self,
         n_fft: int = 2048,
@@ -103,20 +103,36 @@ class BSRoformer(Fourier):
         x = rearrange(x, 'b c (t m) F z -> b t (F m c z)', m=self.time_stacks)
         # shape: (b, t, m*F*c*z)
 
+        '''
         x = self.band_split(x)
         # shape: (b, t, f, d)
 
         for t_transformer, f_transformer in self.transformers:
 
             x = rearrange(x, 'b t f d -> (b f) t d')
-
             x = t_transformer(x)
 
             x = rearrange(x, '(b f) t d -> (b t) f d', b=batch_size)
-
             x = f_transformer(x)
 
             x = rearrange(x, '(b t) f d -> b t f d', b=batch_size)
+
+        x = self.band_combine(x)
+        # shape: (b, t, m*F*c*z)
+        '''
+
+        x = self.band_split(x)
+        # shape: (b, t, f, d)
+
+        for t_transformer, f_transformer in self.transformers:
+
+            x = rearrange(x, 'b d t f -> (b f) t d')
+            x = t_transformer(x)
+
+            x = rearrange(x, '(b f) t d -> (b t) f d', b=batch_size)
+            x = f_transformer(x)
+
+            x = rearrange(x, '(b t) f d -> b d t f', b=batch_size)
 
         x = self.band_combine(x)
         # shape: (b, t, m*F*c*z)
@@ -186,11 +202,11 @@ class BandSplit(Module):
             
                 # No Norm for the first layer
                 nn.Linear(in_dim, dim),
-                nn.GELU(),
+                nn.SiLU(),
 
                 RMSNorm(dim),
                 nn.Linear(dim, dim),
-                nn.GELU(),
+                nn.SiLU(),
 
                 RMSNorm(dim),
                 nn.Linear(dim, dim)
@@ -202,10 +218,10 @@ class BandSplit(Module):
         r"""
 
         Args:
-            x: (m, t, m*F*c*z)
+            x: (b, t, F*m*c*z)
 
         Outputs:
-            output: (m, t, f, d)
+            output: (b, d, t, f)
         """
         band_xs = torch.split(x, split_size_or_sections=self.band_input_dims, dim=-1)
 
@@ -214,7 +230,10 @@ class BandSplit(Module):
             output = net(x)
             outputs.append(output)
 
-        return torch.stack(outputs, dim=2)
+        x = torch.stack(outputs, dim=2)  # (B, T, F, D)
+        x = rearrange(x, 'b t f d -> b d t f')
+
+        return x
 
 
 class BandCombine(Module):
@@ -235,11 +254,11 @@ class BandCombine(Module):
 
                 RMSNorm(dim),
                 nn.Linear(dim, dim),
-                nn.GELU(),
+                nn.SiLU(),
 
                 RMSNorm(dim),
                 nn.Linear(dim, dim),
-                nn.GELU(),
+                nn.SiLU(),
 
                 RMSNorm(dim),
                 nn.Linear(dim, out_dim)
@@ -251,12 +270,13 @@ class BandCombine(Module):
         r"""
 
         Args:
-            x: (b, t, f, d)
+            x: (b, d t, f)
 
         Outputs:
-            output: (b, t, m*F*c*z)
+            output: (b, t, F*m*c*z)
         """
         
+        x = rearrange(x, 'b d t f -> b t f d')
         band_xs = torch.unbind(x, dim=2)
 
         outputs = []
@@ -272,12 +292,12 @@ class MLP(nn.Module):
         super().__init__()
 
         self.fc1 = nn.Linear(dim, 4 * dim, bias=False)
-        self.gelu = nn.GELU()
+        self.silu = nn.SiLU()
         self.fc2 = nn.Linear(4 * dim, dim, bias=False)
 
     def forward(self, x):
         x = self.fc1(x)
-        x = self.gelu(x)
+        x = self.silu(x)
         x = self.fc2(x)
         return x
 
@@ -347,6 +367,6 @@ class TransformerBlock(nn.Module):
         self,
         x: torch.Tensor,
     ):
-        h = x + self.att(self.att_norm(x))
-        out = h + self.mlp(self.ffn_norm(h))
-        return out
+        x = x + self.att(self.att_norm(x))
+        x = x + self.mlp(self.ffn_norm(x))
+        return x

@@ -22,7 +22,7 @@ FREQ_NUM_PER_BANDS = [
 ]
 
 
-class BSRoformer(Fourier):
+class BSRoformer2(Fourier):
     def __init__(
         self,
         n_fft: int = 2048,
@@ -80,11 +80,11 @@ class BSRoformer(Fourier):
         Constants:
             b: batch_size
             c: channels_num=2
-            T: time_steps (T=m*t)
+            T: time_steps
             F: n_fft // 2 + 1
             m: time_stacks
             t: time_bins
-            f: freq_bins (F=sum([f1, f2, ...]))
+            f: freq_bins
             z: complex_num=2
         """
 
@@ -100,7 +100,7 @@ class BSRoformer(Fourier):
         x = torch.view_as_real(x)
         # shape: (b, c, T, F, z)
 
-        x = rearrange(x, 'b c (t m) F z -> b t (F m c z)', m=self.time_stacks)
+        x = rearrange(x, 'b c (t m) F z -> b t (m F c z)', m=self.time_stacks)
         # shape: (b, t, m*F*c*z)
 
         x = self.band_split(x)
@@ -121,7 +121,7 @@ class BSRoformer(Fourier):
         x = self.band_combine(x)
         # shape: (b, t, m*F*c*z)
 
-        x = rearrange(x, 'b t (F m c z) -> b c (t m) F z', m=self.time_stacks, c=self.audio_channels, z=self.cmplx_num)
+        x = rearrange(x, 'b t (m F c z) -> b c (t m) F z', m=self.time_stacks, c=self.audio_channels, z=self.cmplx_num)
         # (b, c, T, F, z)
         
         x = torch.view_as_complex(x)
