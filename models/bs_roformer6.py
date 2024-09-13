@@ -22,7 +22,7 @@ FREQ_NUM_PER_BANDS = [
 ]
 
 
-class BSRoformer5a(Fourier):
+class BSRoformer6a(Fourier):
     def __init__(
         self,
         n_fft: int = 2048,
@@ -57,16 +57,14 @@ class BSRoformer5a(Fourier):
             band_output_dims=band_input_dims
         )
 
-        time_rotary_embed = RotaryEmbedding(dim=self.head_dim)
-        freq_rotary_embed = RotaryEmbedding(dim=self.head_dim)
+        rotary_embed = RotaryEmbedding(dim=self.head_dim)
 
         self.transformers = ModuleList([])
 
         for _ in range(self.depth):
-            self.transformers.append(nn.ModuleList([
-                TransformerBlock(dim=self.dim, n_heads=self.n_heads, rotary_embed=time_rotary_embed),
-                TransformerBlock(dim=self.dim, n_heads=self.n_heads, rotary_embed=freq_rotary_embed)
-            ]))
+            self.transformers.append(
+                TransformerBlock(dim=self.dim, n_heads=self.n_heads, rotary_embed=rotary_embed)
+            )
         
     def forward(self, mixture):
         """Separation model.
@@ -103,36 +101,17 @@ class BSRoformer5a(Fourier):
         x = rearrange(x, 'b c (t m) F z -> b t (F m c z)', m=self.time_stacks)
         # shape: (b, t, m*F*c*z)
 
-        '''
         x = self.band_split(x)
-        # shape: (b, t, f, d)
+        # shape: (b, d, t f)
+        
+        B, D, T, Freq = x.shape
+        x = rearrange(x, 'b d t f ->  b (t f) d')
 
-        for t_transformer, f_transformer in self.transformers:
+        for transformer in self.transformers:
 
-            x = rearrange(x, 'b t f d -> (b f) t d')
-            x = t_transformer(x)
+            x = transformer(x)
 
-            x = rearrange(x, '(b f) t d -> (b t) f d', b=batch_size)
-            x = f_transformer(x)
-
-            x = rearrange(x, '(b t) f d -> b t f d', b=batch_size)
-
-        x = self.band_combine(x)
-        # shape: (b, t, m*F*c*z)
-        '''
-
-        x = self.band_split(x)
-        # shape: (b, d, t, f)
-
-        for t_transformer, f_transformer in self.transformers:
-
-            x = rearrange(x, 'b d t f -> (b f) t d')
-            x = t_transformer(x)
-
-            x = rearrange(x, '(b f) t d -> (b t) f d', b=batch_size)
-            x = f_transformer(x)
-
-            x = rearrange(x, '(b t) f d -> b d t f', b=batch_size)
+        x = rearrange(x, 'b (t f) d -> b d t f', t=T)
 
         x = self.band_combine(x)
         # shape: (b, t, m*F*c*z)

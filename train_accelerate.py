@@ -58,7 +58,7 @@ def train(args):
         split="train",
         sr=sr,
         crop=RandomCrop(clip_duration=clip_duration, end_pad=0.),
-        remix={"no_remix": 0.1, "half_remix": 0.4, "full_remix": 0.5}
+        remix={"no_remix": 0., "half_remix": 1.0, "full_remix": 0.}
     )
 
     # Samplers
