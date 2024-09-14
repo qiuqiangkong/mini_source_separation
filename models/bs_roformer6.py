@@ -58,6 +58,7 @@ class BSRoformer6a(Fourier):
         )
 
         rotary_embed = RotaryEmbedding(dim=self.head_dim)
+        # from IPython import embed; embed(using=False); os._exit(0)
 
         self.transformers = ModuleList([])
 
