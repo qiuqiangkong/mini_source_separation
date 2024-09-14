@@ -56,7 +56,7 @@ def train(args):
         split="train",
         sr=sr,
         crop=RandomCrop(clip_duration=clip_duration, end_pad=0.),
-        remix={"no_remix": 0.1, "half_remix": 0.4, "full_remix": 0.5}
+        remix={"no_remix": 0., "half_remix": 1.0, "full_remix": 0.}
     )
 
     # Samplers
@@ -230,6 +230,20 @@ def get_model(model_name):
             t1=101,
             f1=64,
             t2=4,
+            f2=1,
+            depth=12,
+            dim=384,
+            n_heads=12
+        )
+    elif model_name == "BSRoformer7b":
+        from models.bs_roformer7 import BSRoformer7a
+        return BSRoformer7a(
+            n_fft=2048,
+            hop_length=441,
+            input_channels=2,
+            t1=201,
+            f1=64,
+            t2=1,
             f2=1,
             depth=12,
             dim=384,
