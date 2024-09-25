@@ -78,10 +78,12 @@ class BSRoformer8a(Fourier):
 
         self.fc_in = nn.Linear(in_features=self.t2 * self.f2 * h0, out_features=self.dim)
 
+        
         for _ in range(self.depth):
             self.transformers.append(
                 TransformerBlock(dim=self.dim, n_heads=self.n_heads, rotary_t=rotary_t1, rotary_f=rotary_f1)
                 )
+        
 
         self.fc_out = nn.Linear(in_features=self.dim, out_features=self.t2 * self.f2 * h0)
         
@@ -127,7 +129,7 @@ class BSRoformer8a(Fourier):
         for transformer in self.transformers:
 
             x = transformer(x)
-
+        
         x = self.fc_out(x)
         x = rearrange(x, 'b t1 f1 (t2 f2 d) -> b d (t1 t2) (f1 f2)', t2=self.t2, f2=self.f2)
 
@@ -292,8 +294,8 @@ class Attention(nn.Module):
         self.rotary_f = rotary_f
         # self.register_buffer('rotary', rotary)
 
-        self.flash = hasattr(torch.nn.functional, 'scaled_dot_product_attention')
-        assert self.flash, "Must have flash attention."
+        # self.flash = hasattr(torch.nn.functional, 'scaled_dot_product_attention')
+        # assert self.flash, "Must have flash attention."
         
         self.c_attn = nn.Linear(dim, 5 * dim, bias=False)  # 3 indicates qkv outputs.
         self.c_proj = nn.Linear(dim, dim, bias=False)
@@ -337,6 +339,8 @@ class Attention(nn.Module):
 
         y = rearrange(v, '(b t) h f d -> b t f (h d)', b=B)
 
+        y = self.c_proj(y)
+
         return y
 
 
@@ -358,6 +362,7 @@ class TransformerBlock(nn.Module):
         x: torch.Tensor,
     ):
         r"""x: (b, t, f, d)"""
+        
         x = x + self.att(self.att_norm(x))
         x = x + self.mlp(self.ffn_norm(x))
         return x

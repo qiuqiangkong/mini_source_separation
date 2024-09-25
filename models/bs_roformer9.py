@@ -352,6 +352,8 @@ class Attention(nn.Module):
 
         y = rearrange(v, '(b t) h f d -> b t f (h d)', b=B)
 
+        y = self.c_proj(y)
+
         return y
 
 
