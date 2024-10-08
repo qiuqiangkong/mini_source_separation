@@ -12,6 +12,7 @@ import torch.optim as optim
 from torch import nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+from copy import deepcopy
 
 import wandb
 
@@ -20,6 +21,7 @@ wandb.require("core")
 from data.audio import load
 from data.musdb18hq import MUSDB18HQ
 from data.crops import RandomCrop
+from utils import update_ema, requires_grad
 
 
 def train(args):
@@ -75,6 +77,12 @@ def train(args):
     model = get_model(model_name)
     model.to(device)
 
+    # EMA
+    ema = deepcopy(model).to(device)
+    requires_grad(ema, False)
+    update_ema(ema, model, decay=0)  # Ensure EMA is initialized with synced weights
+    ema.eval()  # EMA model should always be in eval mode
+
     # Optimizer
     optimizer = optim.AdamW(model.parameters(), lr=lr)
 
@@ -112,6 +120,7 @@ def train(args):
         optimizer.zero_grad()   # Reset all parameter.grad to 0
         loss.backward()     # Update all parameter.grad
         optimizer.step()    # Update all parameters based on all parameter.grad
+        update_ema(ema, model)
 
         # Learning rate scheduler (optional)
         if use_scheduler:
@@ -122,6 +131,7 @@ def train(args):
 
             sdrs = {}
 
+            
             for split in ["train", "test"]:
             
                 sdr = validate(
@@ -136,18 +146,33 @@ def train(args):
                     evaluate_num=evaluate_num,
                 )
                 sdrs[split] = sdr
+            
+            sdr = validate(
+                root=root, 
+                split="test", 
+                sr=sr,
+                clip_duration=clip_duration,
+                source_types=source_types, 
+                target_source_type="vocals",
+                batch_size=batch_size,
+                model=ema,
+                evaluate_num=evaluate_num,
+            )
+            sdrs["test_ema"] = sdr
 
             print("--- step: {} ---".format(step))
             print("Evaluate on {} songs.".format(evaluate_num))
             print("Loss: {:.3f}".format(loss))
             print("Train SDR: {:.3f}".format(sdrs["train"]))
             print("Test SDR: {:.3f}".format(sdrs["test"]))
+            print("Test SDR ema: {:.3f}".format(sdrs["test_ema"]))
 
             if wandb_log:
                 wandb.log(
                     data={
                         "train_sdr": sdrs["train"],
                         "test_sdr": sdrs["test"],
+                        "test_sdr_ema": sdrs["test_ema"],
                         "loss": loss.item(),
                     },
                     step=step
@@ -161,6 +186,10 @@ def train(args):
 
             checkpoint_path = Path(checkpoints_dir, "latest.pth")
             torch.save(model.state_dict(), Path(checkpoint_path))
+            print("Save model to {}".format(checkpoint_path))
+
+            checkpoint_path = Path(checkpoints_dir, "latest_ema.pth")
+            torch.save(ema.state_dict(), Path(checkpoint_path))
             print("Save model to {}".format(checkpoint_path))
 
         if step == training_steps:
