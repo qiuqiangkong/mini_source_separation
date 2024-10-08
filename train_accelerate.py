@@ -131,6 +131,7 @@ def train(args):
         optimizer.zero_grad()   # Reset all parameter.grad to 0
         accelerator.backward(loss)     # Update all parameter.grad
         optimizer.step()    # Update all parameters based on all parameter.grad
+        update_ema(ema, model)
 
         # Learning rate scheduler (optional)
         if use_scheduler:
