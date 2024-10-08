@@ -1,8 +1,10 @@
 import torch
 import soundfile
 import librosa
+import numpy as np
 
 from data.musdb18hq import MUSDB18HQ
+import matplotlib.pyplot as plt
 # from data.audio_io import load
 
 
@@ -96,8 +98,79 @@ def add5():
     from IPython import embed; embed(using=False); os._exit(0)
 
 
+def add6():
+
+    sr = 44100
+    n_fft = 2048
+    hop_length = 441
+    n_mels = 256
+
+    audio_path = "assets/vocals_accompaniment_10s.wav"
+    audio, fs = librosa.load(path=audio_path, sr=sr, mono=True)
+    stft = librosa.stft(y=audio, n_fft=n_fft, hop_length=hop_length, window='hann', center=True).T
+    # (T, F)
+
+    melbanks = librosa.filters.mel(sr=sr, n_fft=n_fft, n_mels=n_mels - 2, norm=None)
+    # (256, 1025)
+
+    melbank_first = np.zeros(melbanks.shape[-1])
+    melbank_first[0] = 1.
+
+    melbank_last = np.zeros(melbanks.shape[-1])
+    idx = np.argmax(melbanks[-1])
+    melbank_last[idx :] = 1. - melbanks[-1, idx :]
+    
+    melbanks = np.concatenate(
+        [melbank_first[None, :], melbanks, melbank_last[None, :]], axis=0
+    )
+
+    sum_banks = np.sum(melbanks, axis=0)
+    assert np.allclose(a=sum_banks, b=1.)
+
+    
+    # melbanks.
+
+    melbanks = torch.Tensor(melbanks)
+    stft = torch.Tensor(stft)
+
+    indexes = []
+
+    y = torch.zeros_like(stft)
+    sum_banks = torch.zeros(stft.shape[1])
+
+    for f in range(melbanks.shape[0]):
+        idxes = (melbanks[f] != 0).nonzero().squeeze()
+        indexes.append(idxes)
+
+        bank = melbanks[f, idxes]  # (banks,)
+        stft_bank = stft[:, idxes]  # (T, banks)
+        y[:, idxes] += stft_bank * bank
+
+    (stft - y).abs().mean()
+
+    from IPython import embed; embed(using=False); os._exit(0)    
+
+    plt.matshow(melbanks, origin='lower', aspect='auto', cmap='jet')
+    plt.savefig("_zz.pdf")
+
+    # import librosa
+
+    # audio, fs = librosa.load(path="123.wav", sr=24000, mono=True)
+
+    # stft = librosa.stft(
+    #     y=audio, 
+    #     n_fft=1024, 
+    #     hop_length=240, 
+    #     window='hann', 
+    #     center=True
+    # )
+
+
+    # from IPython import embed; embed(using=False); os._exit(0)
+
+
 if __name__ == '__main__':
 
     # add()
 
-    add5()
+    add6()

@@ -32,6 +32,8 @@ CUDA_VISIBLE_DEVICES=1 python train_enc_dec.py --model_name=EncDec --clip_durati
 # BSRoformer4b	dct
 # BSRoformer5	fixed
 # BSRoformer6a	full 2d, not so good on test
-# BSRoformer7a	bs, only 1 early fc, bs=4, clip=4s, 10.05 dB
-# BSRoformer8a	combine attention
-# BSRoformer8b	combine attention x 3
+# + BSRoformer7a	bs, only 1 early fc, bs=4, clip=4s, 10.05 dB
+# BSRoformer8a	combine attention, L=24, overfit a bit
+# BSRoformer8b	combine attention x 3,
+# BSRoformer10a	L=24, clip=2, bs=3
+# BSRoformer10a	L=12, clip=4, bs=4
