@@ -131,7 +131,10 @@ def train(args):
         optimizer.zero_grad()   # Reset all parameter.grad to 0
         accelerator.backward(loss)     # Update all parameter.grad
         optimizer.step()    # Update all parameters based on all parameter.grad
-        update_ema(ema, model)
+
+        parallel = (accelerator.num_processes > 1)
+
+        update_ema(ema_model=ema, model=accelerator.unwrap_model(model))
 
         # Learning rate scheduler (optional)
         if use_scheduler:
