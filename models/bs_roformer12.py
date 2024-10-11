@@ -10,7 +10,7 @@ from rotary_embedding_torch import RotaryEmbedding, apply_rotary_emb
 from models.fourier import Fourier
 
 
-class BSRoformer11a(Fourier):
+class BSRoformer12a(Fourier):
     def __init__(
         self,
         n_fft: int = 2048,
@@ -51,12 +51,19 @@ class BSRoformer11a(Fourier):
 
         rotary_emb_t = RotaryEmbedding(dim=self.head_dim)
         rotary_emb_f = RotaryEmbedding(dim=self.head_dim)
+        rotary_emb_tf = RotaryEmbedding(dim=self.head_dim)
         
         self.transformers = nn.ModuleList([])
 
         for _ in range(self.depth):
             self.transformers.append(
-                TransformerBlock(dim=self.dim, n_heads=self.n_heads, rotary_emb_t=rotary_emb_t, rotary_emb_f=rotary_emb_f),
+                TransformerBlock(
+                    dim=self.dim, 
+                    n_heads=self.n_heads, 
+                    rotary_emb_t=rotary_emb_t, 
+                    rotary_emb_f=rotary_emb_f,
+                    rotary_emb_tf=rotary_emb_tf
+                ),
             )
 
         self.fc_out = nn.Linear(
@@ -127,9 +134,11 @@ class BSRoformer11a(Fourier):
 
     def patchify(self, x):
 
+        # t2 = 4
         B, C, T, Freq = x.shape
         patch_size_t = self.patch_size[0]
-        pad_len = int(np.ceil(T / patch_size_t)) * patch_size_t - T
+        # pad_len = int(np.ceil(T / patch_size_t)) * patch_size_t - T
+        pad_len = 15
         x = F.pad(x, pad=(0, 0, 0, pad_len))
 
         t2, f2 = self.patch_size
@@ -271,7 +280,8 @@ class Attention(nn.Module):
         dim: int, 
         n_heads: int, 
         rotary_emb_t: RotaryEmbedding, 
-        rotary_emb_f: RotaryEmbedding
+        rotary_emb_f: RotaryEmbedding,
+        rotary_emb_tf: RotaryEmbedding
     ):
         super().__init__()
         
@@ -281,12 +291,14 @@ class Attention(nn.Module):
         self.dim = dim
         self.rotary_emb_t = rotary_emb_t
         self.rotary_emb_f = rotary_emb_f
+        self.rotary_emb_tf = rotary_emb_tf
 
         self.flash = hasattr(torch.nn.functional, 'scaled_dot_product_attention')
         assert self.flash, "Must have flash attention."
         
         self.c_attn1 = nn.Linear(dim, 3 * dim, bias=False)
         self.c_attn2 = nn.Linear(dim, 3 * dim, bias=False)
+        self.c_attn3 = nn.Linear(dim, 3 * dim, bias=False)
         self.c_proj = nn.Linear(dim, dim, bias=False)
         
     def forward(self, x):
@@ -331,16 +343,35 @@ class Attention(nn.Module):
 
             x = rearrange(x, 'b h f d -> b f (h d)')  # (b*t, f, d)
 
+        if True:
+            t2 = 8
+            f2 = 8
+            t1 = x.shape[0] // (B * t2)
+            f1 = x.shape[1] // f2
+            x = rearrange(x, '(b t1 t2) (f1 f2) d -> (b t1 f1) (t2 f2) d', b=B, t2=t2, f2=f2)
+
+            q, k, v = rearrange(self.c_attn3(x), 'b k (r h d) -> r b h k d', r=3, h=self.n_heads)
+            # q, k, v: (b, h, f, d)
+
+            q = self.rotary_emb_f.rotate_queries_or_keys(q)
+            k = self.rotary_emb_f.rotate_queries_or_keys(k)
+
+            if self.flash:
+                x = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=None, dropout_p=0, is_causal=False)
+
+            x = rearrange(x, 'b h k d -> b k (h d)')  # (b*m, k, d)
+            x = rearrange(x, '(b t1 f1) (t2 f2) d -> b (t1 t2) (f1 f2) d', b=B, t1=t1, t2=t2, f1=f1, f2=f2)
+
         x = self.c_proj(x)
-        # shape: (b*t, f, d)
+        # shape: (b, t, f, d)
 
-        x = rearrange(x, '(b t) f d -> b d t f', b=B)
-
+        x = rearrange(x, 'b t f d -> b d t f', b=B)
+        
         return x
 
 
 class TransformerBlock(nn.Module):
-    def __init__(self, dim: int, n_heads: int, rotary_emb_t: RotaryEmbedding, rotary_emb_f: RotaryEmbedding):
+    def __init__(self, dim: int, n_heads: int, rotary_emb_t: RotaryEmbedding, rotary_emb_f: RotaryEmbedding, rotary_emb_tf: RotaryEmbedding):
         
         super().__init__()
         self.dim = dim
@@ -348,7 +379,7 @@ class TransformerBlock(nn.Module):
         
         self.att_norm = RMSNorm(dim)
         self.ffn_norm = RMSNorm(dim)
-        self.att = Attention(dim=dim, n_heads=n_heads, rotary_emb_t=rotary_emb_t, rotary_emb_f=rotary_emb_f)
+        self.att = Attention(dim=dim, n_heads=n_heads, rotary_emb_t=rotary_emb_t, rotary_emb_f=rotary_emb_f, rotary_emb_tf=rotary_emb_tf)
         self.mlp = MLP(dim=dim)
         
 

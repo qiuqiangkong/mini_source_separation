@@ -37,3 +37,5 @@ CUDA_VISIBLE_DEVICES=1 python train_enc_dec.py --model_name=EncDec --clip_durati
 # BSRoformer8b	combine attention x 3,
 # BSRoformer10a	L=24, clip=2, bs=3
 # BSRoformer10a	L=12, clip=4, bs=4
+# BSRoformer11a	L=12, clip=4, bs=4, combine att
+# BSRoformer12a	L=12, clip=4, bs=4, combine att x 3
