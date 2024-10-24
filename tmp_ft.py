@@ -12,7 +12,6 @@ import torch.optim as optim
 from torch import nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from copy import deepcopy
 
 import wandb
 
@@ -21,7 +20,7 @@ wandb.require("core")
 from data.audio import load
 from data.musdb18hq import MUSDB18HQ
 from data.crops import RandomCrop
-from utils import update_ema, requires_grad
+from ft import get_loss
 
 
 def train(args):
@@ -44,7 +43,7 @@ def train(args):
     save_step_frequency = 10000
     evaluate_num = 10
     training_steps = 1000000
-    wandb_log = True
+    wandb_log = False
     device = "cuda"
 
     filename = Path(__file__).stem
@@ -60,7 +59,7 @@ def train(args):
         split="train",
         sr=sr,
         crop=RandomCrop(clip_duration=clip_duration, end_pad=0.),
-        remix={"no_remix": 0., "half_remix": 1.0, "full_remix": 0.}
+        remix={"no_remix": 0.1, "half_remix": 0.4, "full_remix": 0.5}
     )
 
     # Samplers
@@ -79,12 +78,6 @@ def train(args):
     model = get_model(model_name)
     model.load_state_dict(torch.load(ckpt_path))
     model.to(device)
-
-    # EMA
-    ema = deepcopy(model).to(device)
-    requires_grad(ema, False)
-    update_ema(ema, model, decay=0)  # Ensure EMA is initialized with synced weights
-    ema.eval()  # EMA model should always be in eval mode
 
     # Optimizer
     optimizer = optim.AdamW(model.parameters(), lr=lr)
@@ -125,18 +118,18 @@ def train(args):
         optimizer.zero_grad()   # Reset all parameter.grad to 0
         loss.backward()     # Update all parameter.grad
         optimizer.step()    # Update all parameters based on all parameter.grad
-        update_ema(ema, model)
+
+        print(loss.item())
 
         # Learning rate scheduler (optional)
         if use_scheduler:
             scheduler.step()
-        
+        '''
         # Evaluate
         if step % test_step_frequency == 0:
 
             sdrs = {}
 
-            
             for split in ["train", "test"]:
             
                 sdr = validate(
@@ -151,33 +144,18 @@ def train(args):
                     evaluate_num=evaluate_num,
                 )
                 sdrs[split] = sdr
-            
-            sdr = validate(
-                root=root, 
-                split="test", 
-                sr=sr,
-                clip_duration=clip_duration,
-                source_types=source_types, 
-                target_source_type="vocals",
-                batch_size=batch_size,
-                model=ema,
-                evaluate_num=evaluate_num,
-            )
-            sdrs["test_ema"] = sdr
 
             print("--- step: {} ---".format(step))
             print("Evaluate on {} songs.".format(evaluate_num))
             print("Loss: {:.3f}".format(loss))
             print("Train SDR: {:.3f}".format(sdrs["train"]))
             print("Test SDR: {:.3f}".format(sdrs["test"]))
-            print("Test SDR ema: {:.3f}".format(sdrs["test_ema"]))
 
             if wandb_log:
                 wandb.log(
                     data={
                         "train_sdr": sdrs["train"],
                         "test_sdr": sdrs["test"],
-                        "test_sdr_ema": sdrs["test_ema"],
                         "loss": loss.item(),
                     },
                     step=step
@@ -193,12 +171,9 @@ def train(args):
             torch.save(model.state_dict(), Path(checkpoint_path))
             print("Save model to {}".format(checkpoint_path))
 
-            checkpoint_path = Path(checkpoints_dir, "latest_ema.pth")
-            torch.save(ema.state_dict(), Path(checkpoint_path))
-            print("Save model to {}".format(checkpoint_path))
-
         if step == training_steps:
             break
+        '''
 
 
 def get_model(model_name):
@@ -429,21 +404,6 @@ def log_l1_loss(output, target):
     loss = -torch.mean(sdr)
     
     return loss
-
-
-def get_loss(loss_type):
-
-    if loss_type == "PowerLoss":
-        return PowerLoss()
-
-
-class PowerLoss:
-    def __init__(self):
-        pass
-
-    def __call__(self, output, target):
-        loss = (torch.clamp((output - target).abs(), 1e-10) ** 0.2).mean()
-        return loss
 
 
 def validate(

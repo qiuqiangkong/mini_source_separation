@@ -24,7 +24,7 @@ from data.audio import load
 from data.musdb18hq import MUSDB18HQ
 from data.crops import RandomCrop
 from train import InfiniteSampler, get_model, validate, warmup_lambda
-from ft import log_l1_loss
+from ft import get_loss
 from utils import update_ema, requires_grad
 
 
@@ -36,6 +36,7 @@ def train(args):
     batch_size = args.batch_size
     lr = float(args.lr)
     ckpt_path = args.ckpt_path
+    loss_type = args.loss_type
 
     # Default parameters
     sr = 44100 
@@ -117,6 +118,8 @@ def train(args):
     # Create checkpoints directory
     Path(checkpoints_dir).mkdir(parents=True, exist_ok=True)
 
+    loss_obj = get_loss(loss_type)
+
     # Train
     for step, data in enumerate(tqdm(train_dataloader)):
 
@@ -128,7 +131,7 @@ def train(args):
         output = model(mixture=mixture) 
         
         # Calculate loss
-        loss = log_l1_loss(output, target)
+        loss = loss_obj(output, target)
 
         # Optimize
         optimizer.zero_grad()   # Reset all parameter.grad to 0
@@ -237,6 +240,7 @@ if __name__ == "__main__":
     parser.add_argument('--batch_size', type=int, default=16)
     parser.add_argument('--lr', default=0.001)
     parser.add_argument('--ckpt_path', type=str, required=True)
+    parser.add_argument('--loss_type', type=str, required=True)
     args = parser.parse_args()
 
     train(args)
