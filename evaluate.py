@@ -14,6 +14,7 @@ def evaluate(args):
     clip_duration = args.clip_duration
     batch_size = args.batch_size
     evaluate_num = None
+    # evaluate_num = 10
 
     root = "/datasets/musdb18hq"
     split = "test"
