@@ -80,7 +80,6 @@ def train(args):
     # Model
     model = get_model(model_name)
     model.load_state_dict(torch.load(ckpt_path))
-    model.to(device)
 
     # EMA
     ema = deepcopy(model)
