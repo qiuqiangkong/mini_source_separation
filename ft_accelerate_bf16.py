@@ -23,7 +23,8 @@ wandb.require("core")
 from data.audio import load
 from data.musdb18hq import MUSDB18HQ
 from data.crops import RandomCrop
-from train import InfiniteSampler, get_model, log_l1_loss, validate, warmup_lambda
+from train import InfiniteSampler, get_model, validate, warmup_lambda
+from ft import log_l1_loss
 from utils import update_ema, requires_grad
 
 

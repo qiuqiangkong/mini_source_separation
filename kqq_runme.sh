@@ -16,6 +16,8 @@ CUDA_VISIBLE_DEVICES=1 python evaluate.py \
 CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 accelerate launch --multi_gpu --num_processes 8 train_accelerate.py --model_name=BSRoformer2 --clip_duration=2.0 --batch_size=3 --lr=3e-4
 
 
+CUDA_VISIBLE_DEVICES=5 python tmp_ft.py --model_name=BSRoformer15a    --clip_duration=1.0     --batch_size=4  --lr=3e-4 --ckpt_path="checkpoints/train_accelerate_bf16/BSRoformer15a/latest_ema.pth"
+
 CUDA_VISIBLE_DEVICES=0 python inference.py \
 	--model_name="BSRoformer" \
 	--ckpt_path="checkpoints/train_accelerate/BSRoformer/step=390000.pth" \
