@@ -176,8 +176,9 @@ def separate2(
     padded_audio_samples = round(np.ceil(audio_samples / clip_samples) * clip_samples)
     audio = librosa.util.fix_length(data=audio, size=padded_audio_samples, axis=-1)
 
-    hop_length = 44100
-    # hop_length = 132300
+    hop_length = 4410
+    # hop_length = 44100  # 10.66 dB
+    # hop_length = 132300  # 10.54 dB
     clips, divide_values = enframe(x=audio, frame_length=clip_samples, hop_length=hop_length)
     # shape: (clips_num, channels_num, clip_samples)
 
