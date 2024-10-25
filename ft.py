@@ -436,6 +436,12 @@ def get_loss(loss_type):
     if loss_type == "PowerLoss":
         return PowerLoss()
 
+    elif loss_type == "L1Loss":
+        return L1Loss()
+
+    else:
+        raise NotImplementedError
+
 
 class PowerLoss:
     def __init__(self):
@@ -443,6 +449,15 @@ class PowerLoss:
 
     def __call__(self, output, target):
         loss = (torch.clamp((output - target).abs(), 1e-10) ** 0.2).mean()
+        return loss
+
+
+class L1Loss:
+    def __init__(self):
+        pass
+
+    def __call__(self, output, target):
+        loss = (output - target).abs().mean()
         return loss
 
 

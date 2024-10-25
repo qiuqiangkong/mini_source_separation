@@ -378,6 +378,9 @@ def get_model(model_name):
             dim=384,
             n_heads=12
         )
+    elif model_name == "WavUNet":
+        from models.wavunet import WavUNet
+        return WavUNet()
     else:
         raise NotImplementedError
 
