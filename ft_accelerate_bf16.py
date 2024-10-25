@@ -106,7 +106,7 @@ def train(args):
             "devices_num": torch.cuda.device_count()
         }
         wandb.init(
-            project="mini_source_separation", 
+            project="mini_source_separation_ft", 
             config=config, 
             name="{} {}".format(model_name, str(train_dataset.remix_weights)),
             magic=True
