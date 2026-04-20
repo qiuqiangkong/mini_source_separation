@@ -103,9 +103,10 @@ def train(args) -> None:
         scheduler.step()
         update_ema(ema, model, decay=0.999)
 
-        if step % 100 == 0:
+        if step % 10 == 0:
             print(loss)
 
+        '''
         # ------ 2. Evaluation ------
         # 2.1 Evaluate
         if step % configs["train"]["test_every_n_steps"] == 0:
@@ -146,6 +147,7 @@ def train(args) -> None:
 
         if step == configs["train"]["training_steps"]:
             break
+        '''
         
 
 def get_dataset(

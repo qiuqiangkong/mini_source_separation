@@ -176,9 +176,13 @@ CUDA_VISIBLE_DEVICES=0 python evaluate.py \
 # 89a.yaml      erb subband 32, patch=(4, 1), ds=30, fft=128, hop=16
 # 89b.yaml      erb subband 128, patch=(4, 2), ds=120, fft=32, hop=4
 # + 89c.yaml      erb subband 128, patch=(4, 1), ds=120, fft=32, hop=4
+# + 89c2.yaml      erb subband 128, patch=(4, 1), ds=120, fft=32, hop=4
 # + 89d.yaml      erb subband 256, patch=(4, 1), ds=240, fft=16, hop=2
-# 90a.yaml      fft=32, hop=8, others same as 87a, sdr=9.0dB
+# + 90a.yaml      fft=32, hop=8, others same as 87a, sdr=9.0dB
 # 90b.yaml      fft=128, hop=8, others same as 87a, sdr=8.0dB
+# 90c.yaml      fft=16, hop=8, others same as 87a
+# 90d.yaml      fft=16, hop=8, rectangle window, others same as 87a
+
 # 91a.yaml      conv1d, others same as 87a, sdr=8.7dB
 # 92a.yaml      erb subband 64, patch=(4, 1), multi nfft/hop, others same as 87a
 # 93a.yaml      multil stft, others same as 87a
@@ -186,6 +190,24 @@ CUDA_VISIBLE_DEVICES=0 python evaluate.py \
 # 95a.yaml      subband 1D Transformer, erb subband=64, patch=(4, 1) others same as 87a
 # 95b.yaml      erb subband=64, n_fft=16, hop=4, patch=(1, 1), others same as 87a
 # 96a.yaml      subband=128, n_fft=16, hop=4, patch=(1, 1), others same as 87a
+# 97a.yaml      conv1d, kernel=32, others as 87a
+# 98a.yaml      overlap subband, others similar to 89c2, but not the same
+
+# 99a.yaml      sp loss, others same as 87a
+# 99a2.yaml     sp loss scale, others same as 87a, good.
+# 99b.yaml      sp + wav loss, others same as 87a
+# 99c.yaml      old loss same same as 87a
+# 99d.yaml      sp loss, hop=147 same same as 87a
+# 99e.yaml      same same as 87a
+# 99e2.yaml     win=2048, others same same as 87a
+# 99f.yaml      l1 loss
+# + 99g.yaml    sp loss, 2048, hop=512, SDR=8.9dB
+# 99g2.yaml     sp loss multi, 256, 512, 1024, 2048, 4096, SDR=8.5dB
+# x 99h.yaml      logsp loss, others same as 87a 
+# 99i.yaml      subband stft loss, others same as 87a 
+
+# 100a.yaml     mel bandsplit, others same as 89c2
+
 
 # dsp/dsp3 filter compare
 # 
