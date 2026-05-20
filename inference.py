@@ -8,7 +8,8 @@ import numpy as np
 import soundfile
 
 from mss.utils import parse_yaml, separate_overlap_add
-from train import get_model
+# from train import get_model
+from train2 import get_model
 
 
 def inference(args) -> None:

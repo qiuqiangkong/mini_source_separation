@@ -143,7 +143,7 @@ CUDA_VISIBLE_DEVICES=0 python evaluate.py \
 # 64a.yaml      UTransformerCat, others same as 42a
 # 65a.yaml      abs pos, slightly worse
 # 65b.yaml      abs pos, all layers
-# 65c.yaml      layer scale. Better than 42a
+# + 65c.yaml      layer scale. Better than 42a
 # 65d.yaml      layer scale, all freq
 # 66a.yaml      stft 128, 512, 2048 cat
 # 66a2.yaml      stft 128, 512, 2048 cat, weight, worse than 66a
@@ -191,7 +191,7 @@ CUDA_VISIBLE_DEVICES=0 python evaluate.py \
 # 95b.yaml      erb subband=64, n_fft=16, hop=4, patch=(1, 1), others same as 87a
 # 96a.yaml      subband=128, n_fft=16, hop=4, patch=(1, 1), others same as 87a
 # 97a.yaml      conv1d, kernel=32, others as 87a
-# 98a.yaml      overlap subband, others similar to 89c2, but not the same
+# + 98a.yaml      overlap subband, others similar to 89c2, but not the same
 
 # 99a.yaml      sp loss, others same as 87a
 # 99a2.yaml     sp loss scale, others same as 87a, good.
@@ -207,7 +207,17 @@ CUDA_VISIBLE_DEVICES=0 python evaluate.py \
 # 99i.yaml      subband stft loss, others same as 87a 
 
 # 100a.yaml     mel bandsplit, others same as 89c2
-
+# 101a.yaml     swiGLU, others same as 89c2
+# - 102a.yaml     only remain 1/6 att, others same as 89c2
+# 102b.yaml     only remain 1/2 att, others same as 89c2
+# - 103a.yaml     scale, others same as 89c2
+# 103b.yaml     scale, constant, others same as 89c2
+# 103c.yaml     scale, 2d, others same as 89c2
+# 103d.yaml     scale, 2d, decompose, others same as 89c2
+# - 104a.yaml     pool attention, others same as 89c2
+# 105a.yaml     24 layers, others same as 89c2
+# 106a.yaml     cross shape att, others same as 89c2 (bs 26s, noatt 13s->20s, fullatt 120s, cross 34s)
+# 107a.yaml     unet
 
 # dsp/dsp3 filter compare
 # 
