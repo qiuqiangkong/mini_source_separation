@@ -221,6 +221,7 @@ CUDA_VISIBLE_DEVICES=0 python evaluate.py \
 # 107a2.yaml    unet-transformer， fix
 # 107b.yaml     unet-transformer, pixel
 # 108a.yaml     subbandloss, others same as 89c2
+# 108b.yaml     subband_stft_loss, others same as 89c2
 
 # dsp/dsp3 filter compare
 # 

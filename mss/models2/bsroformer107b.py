@@ -85,7 +85,6 @@ class BSRoformer107b(nn.Module):
         Returns:
             out: (b, c, l)
         """
-        # from IPython import embed; embed(using=False); os._exit(0)
 
         # Subband Analysis
         x = self.sb_filter.analysis(audio)  # (b, c, k, l')
@@ -103,7 +102,7 @@ class BSRoformer107b(nn.Module):
         # Enc
         x1 = self.patch1(x0)
         x1 = self.enc1(x1)
-        x1 = rearrange(x1, 'b d k t f -> b (d f) k t')
+        x1 = rearrange(x1, 'b d k t f -> b (d f) t k')
         
         x2 = self.patch2(x1)
         x2 = self.enc2(x2)
@@ -121,7 +120,7 @@ class BSRoformer107b(nn.Module):
         y1 = self.unpatch2(y1)
 
         y0 = self.cat1(x1, y1)
-        y0 = rearrange(y0, 'b (d f) k t -> b d k t f', f=F_)
+        y0 = rearrange(y0, 'b (d f) t k -> b d k t f', f=F_)
         y0 = self.dec1(y0)
         y0 = self.unpatch1(y0)
 
@@ -178,7 +177,7 @@ class BSRoformer107b(nn.Module):
         """
 
         # Pad last frames, e.g., 201 -> 204
-        pad_t = -x.shape[2] % patch_size_t  # Equals to p - (T % p)
+        pad_t = -x.shape[3] % patch_size_t  # Equals to p - (T % p)
         x = F.pad(x, pad=(0, 0, 0, pad_t))
         return x
 
