@@ -217,7 +217,10 @@ CUDA_VISIBLE_DEVICES=0 python evaluate.py \
 # - 104a.yaml     pool attention, others same as 89c2
 # 105a.yaml     24 layers, others same as 89c2
 # 106a.yaml     cross shape att, others same as 89c2 (bs 26s, noatt 13s->20s, fullatt 120s, cross 34s)
-# 107a.yaml     unet
+# 107a.yaml     unet-transformer
+# 107a2.yaml    unet-transformer， fix
+# 107b.yaml     unet-transformer, pixel
+# 108a.yaml     subbandloss, others same as 89c2
 
 # dsp/dsp3 filter compare
 # 

@@ -847,6 +847,14 @@ def get_model(
         from mss.models2.bsroformer107a import BSRoformer107a
         model = BSRoformer107a(**configs["model"])
 
+    elif name == "BSRoformer107a2":
+        from mss.models2.bsroformer107a2 import BSRoformer107a2
+        model = BSRoformer107a2(**configs["model"])
+
+    elif name == "BSRoformer107b":
+        from mss.models2.bsroformer107b import BSRoformer107b
+        model = BSRoformer107b(**configs["model"])
+
     else:
         raise ValueError(name)    
 
@@ -906,6 +914,11 @@ def get_loss_fn(configs: dict) -> callable:
         from mss.losses.sb import L1SubbandSp
         device = configs["train"]["device"]
         return L1SubbandSp().to(device)
+
+    elif loss_type == "l1_sb":
+        from mss.losses.sb import L1Subband
+        device = configs["train"]["device"]
+        return L1Subband().to(device)
 
     else:
         raise ValueError(loss_type)
