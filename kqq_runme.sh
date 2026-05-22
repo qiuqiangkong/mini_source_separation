@@ -222,6 +222,7 @@ CUDA_VISIBLE_DEVICES=0 python evaluate.py \
 # 107b.yaml     unet-transformer, pixel
 # 108a.yaml     subbandloss, others same as 89c2
 # 108b.yaml     subband_stft_loss, others same as 89c2
+# 109a.yaml     wav conv1d (jimmy), others same as 89c2
 
 # dsp/dsp3 filter compare
 # 
