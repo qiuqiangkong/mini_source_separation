@@ -936,6 +936,11 @@ def get_loss_fn(configs: dict) -> callable:
         device = configs["train"]["device"]
         return L1SubbandStft().to(device)
 
+    elif loss_type == "l1_sb_stft_multi":
+        from mss.losses.sb import L1SubbandStftMulti
+        device = configs["train"]["device"]
+        return L1SubbandStftMulti().to(device)
+
     else:
         raise ValueError(loss_type)
 
