@@ -207,7 +207,7 @@ CUDA_VISIBLE_DEVICES=0 python evaluate.py \
 # 99i.yaml      subband stft loss, others same as 87a 
 
 # 100a.yaml     mel bandsplit, others same as 89c2
-# 101a.yaml     swiGLU, others same as 89c2
+# + 101a.yaml     swiGLU, others same as 89c2
 # - 102a.yaml     only remain 1/6 att, others same as 89c2
 # 102b.yaml     only remain 1/2 att, others same as 89c2
 # - 103a.yaml     scale, others same as 89c2
@@ -218,10 +218,11 @@ CUDA_VISIBLE_DEVICES=0 python evaluate.py \
 # 105a.yaml     24 layers, others same as 89c2
 # 106a.yaml     cross shape att, others same as 89c2 (bs 26s, noatt 13s->20s, fullatt 120s, cross 34s)
 # 107a.yaml     unet-transformer
-# 107a2.yaml    unet-transformer， fix
+# + 107a2.yaml    unet-transformer， fix
 # 107b.yaml     unet-transformer, pixel
+# 107c.yaml     unet-transformer, pixel_rnn
 # 108a.yaml     subbandloss, others same as 89c2
-# 108b.yaml     subband_stft_loss, others same as 89c2
+# + 108b.yaml     subband_stft_loss, others same as 89c2
 # 109a.yaml     wav conv1d (jimmy), others same as 89c2
 
 # dsp/dsp3 filter compare
