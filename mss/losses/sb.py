@@ -91,6 +91,53 @@ class L1SubbandStft(nn.Module):
         return x
 
 
+class L1SubbandStftMulti(nn.Module):
+    r"""Multi-resolution STFT loss."""
+
+    def __init__(self) -> None:
+        super(L1SubbandStftMulti, self).__init__()
+
+        sample_rate = 48000
+        n_bands = 112
+        self.n_fft = 16
+        self.hop_length = 4
+        self.patch_size_t = 4
+        max_bandwidth = 390
+        factor = sample_rate // 400
+        chunk_size = 16
+
+        banks = erb_linear_banks(sr=sample_rate, n_bands=n_bands, max_bandwidth=max_bandwidth)
+        self.sb_filter = SubbandFilter(sample_rate, banks, factor, chunk_size=chunk_size)
+
+    def forward(self, output: Tensor, target: Tensor) -> Tensor:
+
+        output = self.sb_filter.analysis(output)
+        target = self.sb_filter.analysis(target)
+
+        loss = 0.
+        for n_fft in [1, 4, 16, 64]:
+            _out = self.stft(output, n_fft, max(n_fft // 4, 1))
+            _tar = self.stft(target, n_fft, max(n_fft // 4, 1))
+            loss += (_out - _tar).abs().mean()
+        
+        return loss
+
+    def stft(self, x: Tensor, n_fft: int, hop_length: int) -> Tensor:
+        B, C, K = x.shape[0 : 3]
+        x = rearrange(x, 'b c k l -> (b c k) l')
+        x = torch.stft(
+            input=x, 
+            n_fft=n_fft,
+            hop_length=hop_length,
+            window=torch.hann_window(n_fft, device=x.device),
+            normalized=True,
+            onesided=False,
+            return_complex=True
+        )
+        x = rearrange(x, '(b c k) f t -> b c k t f', b=B, c=C)
+        return x
+
+
 class L1SubbandSp(nn.Module):
     r"""Multi-resolution STFT loss."""
 

@@ -861,6 +861,11 @@ def get_model(
         from mss.models2.bsroformer109a import BSRoformer109a
         model = BSRoformer109a(**configs["model"])
 
+    elif loss_type == "l1_sb_stft_multi":
+        from mss.losses.sb import L1SubbandStftMulti
+        device = configs["train"]["device"]
+        return L1SubbandStftMulti().to(device)
+
     else:
         raise ValueError(name)    
 
