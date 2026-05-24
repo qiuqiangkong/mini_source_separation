@@ -23,9 +23,9 @@ model:
     sample_rate: *sample_rate
     n_fft: 2048 
     hop_length: 480
-    n_bands: 256
+    n_bands: 128
     band_dim: 64
-    patch_size: [4, 4]
+    patch_size: [4, 1]
     n_layers: 6
     n_heads: 12
     dim: 384
