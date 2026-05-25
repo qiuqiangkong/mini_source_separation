@@ -231,6 +231,7 @@ CUDA_VISIBLE_DEVICES=0 python evaluate.py \
 # 111b.yaml     overlap band, others same as 89c2
 # 112a.yaml     lowband fractional stft, others same as 89c2
 # 113a.yaml     mel bandsplit, others same as 107a2
+# 114a.yaml     patch=(2, 1), others same as 107a2
 
 # dsp/dsp3 filter compare
 # 
