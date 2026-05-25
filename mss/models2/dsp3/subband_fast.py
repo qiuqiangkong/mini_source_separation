@@ -271,9 +271,9 @@ if __name__ == '__main__':
     
     sr = 48000
     n_bands = 256
-    max_bandwidth = 800
+    max_bandwidth = 790
     chunk_size = 16  # Try to tune this to balance RAM and computation speed
-    factor = sr // max_bandwidth
+    factor = sr // 800
     device = "cuda"
 
     # Melbanks

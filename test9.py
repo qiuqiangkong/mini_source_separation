@@ -5,6 +5,8 @@ import h5py
 import json
 import re
 import numpy as np
+from torch import Tensor
+from mss.utils import fast_sdr
 # from torchvision.io import read_video, write_video
 
 
@@ -542,6 +544,54 @@ def add20():
     print(banks)
 
 
-if __name__ == '__main__':
+def add21():
 
-    add20()
+    from mss.models2.dsp3.banks import erb_linear_banks_triangle
+    from mss.models2.dsp3.subband_fast_triangle import SubbandFilter
+
+    sr = 48000
+    n_bands = 112
+    max_half_bandwidth = 390
+    factor = 800
+    chunk_size = 16
+    banks = erb_linear_banks_triangle(sr=sr, n_bands=n_bands, max_half_bandwidth=max_half_bandwidth)
+    # print(banks)
+
+    sb_filter = SubbandFilter(sr, banks, factor, chunk_size=chunk_size).to(device)
+
+    from IPython import embed; embed(using=False); os._exit(0)
+
+
+def add22():
+
+    from mss.models2.dsp3.banks import erb_linear_banks
+    from mss.models2.dsp3.subband_fast import SubbandFilter
+
+    sr = 48000
+    n_bands = 112
+    max_bandwidth = 390
+    factor = sr // 400
+    chunk_size = 16
+    device = "cuda"
+
+    banks = erb_linear_banks(sr=sr, n_bands=n_bands, max_bandwidth=max_bandwidth)
+    sb_filter = SubbandFilter(sr, banks, factor, chunk_size=chunk_size).to(device)
+    print(banks)
+
+    rs = np.random.RandomState(1234)
+    audio = rs.uniform(low=-1, high=1, size=(4, 2, sr * 2))
+    audio = Tensor(audio).to(device)  # (c, l)
+            
+    # Analysis
+    x = sb_filter.analysis(audio)  # (b, c, k, l)
+    y = sb_filter.synthesis(x)
+    sdr = fast_sdr(audio.cpu().numpy(), y.cpu().numpy())
+    print(sdr)
+
+
+    from IPython import embed; embed(using=False); os._exit(0)
+
+
+
+if __name__ == '__main__':
+    add22()

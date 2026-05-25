@@ -5,19 +5,19 @@ import numpy as np
 import torch
 import torch.nn as nn
 from einops import rearrange
-from scipy.signal import firwin
+from scipy.signal import firwin, firwin2
 from torch import Tensor
 
 from mss.utils import fast_sdr
 
 from .analytic import analytic_to_real, real_to_analytic
-from .banks import erb_linear_banks, mel_linear_banks
+from .banks import erb_linear_banks_triangle
 from .convolve import polyphase_fftconvolve
 from .upsample import polyphase_fftupsample
 from .utils import shift_frequency
 
 
-class SubbandFilterOverlap(nn.Module):
+class SubbandFilter(nn.Module):
     r"""Save memory version. Split signal into subbands."""
 
     def __init__(
@@ -49,166 +49,16 @@ class SubbandFilterOverlap(nn.Module):
         N = self.bandpass_filter_len - 1
         w = torch.zeros((n_banks, self.bandpass_filter_len))  # (k, n)
         for i in range(n_banks):
-            if i in [0, 1]:
-                w[i, 1 : ] = self.lowpass(banks[i][1], N)
-            elif i in [n_banks - 1, n_banks - 2]:
-                w[i, 1 :] = self.highpass(banks[i][0], N)
-            else:
-                w[i, 1 :] = self.bandpass(banks[i][0], banks[i][1], N)
-        self.register_buffer("w", w)  # (k, n)
-
-        # Check Nyquist sampling rate
-        bandwidths = [bank[1] - bank[0] for bank in banks]  # (k,)
-        assert max(bandwidths) <= sr / self.factor
-
-        # Center frequency
-        self.register_buffer("f_center", Tensor([np.mean(bank) for bank in banks]))  # (k,)
-
-        # Upsample filter
-        up = torch.zeros(self.upsample_filter_len)
-        up[1 :] = torch.from_numpy(firwin(
-            numtaps=self.upsample_filter_len - 1, 
-            cutoff=1. / self.factor, 
-            pass_zero="lowpass",
-            window="hamming"
-        ))
-        self.register_buffer("up", up)
-
-    def analysis(self, x: Tensor) -> Tensor:
-        r"""Split signal into subbands.
-
-        b: batch_size
-        c: audio_channels
-        l: audio_samples
-        k: n_bands
-
-        Args:
-            x: (b, c, l)
-
-        Returns:
-            out: (b, c, k, l)
-        """ 
-
-        # self.factor = 10
-        B, C, L = x.shape
-        x = real_to_analytic(x)  # (b, c, l_up)
-
-        x = bandpass_demodulate_downsample(
-            x=rearrange(x, 'b c l -> (b c) l'),
-            h=self.w, 
-            sr=self.sr, 
-            freq=-self.f_center, 
-            factor=self.factor, 
-            chunk_size=self.chunk_size
-        )  # (b*c, k, l_down)
-        out = rearrange(x, '(b c) k l -> b c k l', b=B)
-
-        out /= 2
-
-        return out
-    
-
-    def synthesis(self, x: Tensor) -> Tensor:
-        r"""Sum subband signals into original signal.
-
-        b: batch_size
-        c: audio_channels
-        l: audio_samples
-        k: n_bands
-
-        Args:
-            x: (b, c, k, l)
-
-        Returns:
-            out: (b, c, l)
-        """
-        B = x.shape[0]
-        
-        x = upsample_modulate_sum(
-            x=rearrange(x, 'b c k l -> (b c) k l'), 
-            up=self.up, 
-            sr=self.sr, 
-            freq=self.f_center, 
-            factor=self.factor, 
-            chunk_size=self.chunk_size
-        )
-        x = rearrange(x, '(b c) l -> b c l', b=B)
-        out = analytic_to_real(x)  # (b, c, l)
-
-        return out
-
-    def lowpass(self, f: float, n: int) -> Tensor:
-        h = firwin(
-            numtaps=n, 
-            cutoff=f / (self.sr / 2), 
-            pass_zero="lowpass",
-            window=self.window_type
-        )
-        # from IPython import embed; embed(using=False); os._exit(0)
-        # h = firwin(numtaps=5, cutoff=f / (self.sr / 2), pass_zero="lowpass",window=self.window_type)
-        return torch.from_numpy(h)  # (n,)
-
-    def bandpass(self, f1: float, f2: float, n: int) -> Tensor:
-        h = firwin(
-            numtaps=n, 
-            cutoff=[f1 / (self.sr / 2), f2 / (self.sr / 2)], 
-            pass_zero="bandpass",
-            window=self.window_type
-        )
-        return torch.from_numpy(h)  # (n,)
-
-    def highpass(self, f: float, n: int) -> Tensor:
-        h = firwin(
-            numtaps=n, 
-            cutoff=f / (self.sr / 2), 
-            pass_zero="highpass",
-            window=self.window_type
-        )
-        return torch.from_numpy(h)  # (n,)
-
-
-class SubbandFilterOverlap2(nn.Module):
-    r"""Save memory version. Split signal into subbands."""
-
-    def __init__(
-        self, 
-        sr: int, 
-        banks: list[tuple[int, int]],
-        factor: int,
-        chunk_size = 4,
-        bandpass_filter_len = 48000,
-        upsample_filter_len = 12000
-    ):
-        r"""
-        k: n_bands
-        m: filter_len
-        """
-
-        super().__init__()
-
-        self.sr = sr
-        self.banks = banks
-        self.window_type = "hamming"
-        self.factor = factor
-        self.chunk_size = chunk_size
-        self.bandpass_filter_len = bandpass_filter_len
-        self.upsample_filter_len = upsample_filter_len
-
-        # Bandpass filter
-        n_banks = len(banks)
-        N = self.bandpass_filter_len - 1
-        w = torch.zeros((n_banks, self.bandpass_filter_len))  # (k, n)
-        for i in range(n_banks):
-            if i in [0, 1]:
+            if i == 0:
                 w[i, 1 : ] = self.lowpass(banks[i], N)
-            elif i in [n_banks - 1, n_banks - 2]:
+            elif i == n_banks - 1:
                 w[i, 1 :] = self.highpass(banks[i], N)
             else:
                 w[i, 1 :] = self.bandpass(banks[i], N)
         self.register_buffer("w", w)  # (k, n)
 
         # Check Nyquist sampling rate
-        bandwidths = [bank[1] - bank[0] for bank in banks]  # (k,)
+        bandwidths = [bank[-1] - bank[0] for bank in banks]  # (k,)
         assert max(bandwidths) <= sr / self.factor
 
         # Center frequency
@@ -282,35 +132,52 @@ class SubbandFilterOverlap2(nn.Module):
         )
         x = rearrange(x, '(b c) l -> b c l', b=B)
         out = analytic_to_real(x)  # (b, c, l)
-        out /= 2
 
         return out
 
-    def lowpass(self, bank: list[float], n: int) -> Tensor:
-        h = firwin(
-            numtaps=n, 
-            cutoff=bank[1] / (self.sr / 2), 
-            pass_zero="lowpass",
-            window=self.window_type
-        )
-        # from IPython import embed; embed(using=False); os._exit(0)
-        # h = firwin(numtaps=5, cutoff=f / (self.sr / 2), pass_zero="lowpass",window=self.window_type)
-        return torch.from_numpy(h)  # (n,)
-
-    def bandpass(self, bank: list[float], n: int) -> Tensor:
-        h = firwin(
-            numtaps=n, 
-            cutoff=[bank[0] / (self.sr / 2), bank[1] / (self.sr / 2)], 
-            pass_zero="bandpass",
+    def lowpass(self, banks: list[float], n: int) -> Tensor:
+        h = firwin2(
+            numtaps=n,
+            freq=banks + [self.sr / 2],
+            gain=[1., 0., 0.],
+            fs=self.sr,
             window=self.window_type
         )
         return torch.from_numpy(h)  # (n,)
 
-    def highpass(self, bank: list[float], n: int) -> Tensor:
-        h = firwin(
-            numtaps=n, 
-            cutoff=bank[0] / (self.sr / 2), 
-            pass_zero="highpass",
+    def bandpass(self, banks: list[float], n: int) -> Tensor:
+        if banks[0] == 0:
+            h = firwin2(
+                numtaps=n,
+                freq=banks + [self.sr / 2],
+                gain=[0., 1., 0., 0.],
+                fs=self.sr,
+                window=self.window_type
+            )
+        elif banks[-1] == self.sr / 2:
+            h = firwin2(
+                numtaps=n,
+                freq=[0.] + banks,
+                gain=[0., 0., 1., 0.],
+                fs=self.sr,
+                window=self.window_type
+            )
+        else:
+            h = firwin2(
+                numtaps=n,
+                freq=[0.] + banks + [self.sr / 2],
+                gain=[0., 0., 1., 0., 0.],
+                fs=self.sr,
+                window=self.window_type
+            )
+        return torch.from_numpy(h)  # (n,)
+
+    def highpass(self, banks: list[float], n: int) -> Tensor:
+        h = firwin2(
+            numtaps=n,
+            freq=[0.] + banks,
+            gain=[0., 0., 1.],
+            fs=self.sr,
             window=self.window_type
         )
         return torch.from_numpy(h)  # (n,)
@@ -420,8 +287,6 @@ def upsample_modulate_sum(
 
 if __name__ == '__main__':
     
-    from mss.models2.dsp3.banks import erb_linear_banks_triangle
-
     sr = 48000
     n_bands = 111
     max_half_bandwidth = 390
@@ -430,15 +295,10 @@ if __name__ == '__main__':
     device = "cuda"
 
     # Melbanks
-    # banks = mel_linear_banks(sr=sr, n_bands=n_bands, max_bandwidth=max_bandwidth)
-    # banks = erb_linear_banks(sr=sr, n_bands=n_bands, max_bandwidth=max_bandwidth)
-    # sb_filter = SubbandFilterOverlap(sr, banks, factor, chunk_size=chunk_size).to(device)
     banks = erb_linear_banks_triangle(sr=sr, n_bands=n_bands, max_half_bandwidth=max_half_bandwidth)
-    for i in range(1, len(banks) - 1):
-        banks[i] = [banks[i][0], banks[i][2]]
-    # from IPython import embed; embed(using=False); os._exit(0)
-    sb_filter = SubbandFilterOverlap2(sr, banks, factor, chunk_size=chunk_size).to(device)
-    
+    sb_filter = SubbandFilter(sr, banks, factor, chunk_size=chunk_size).to(device)
+    from IPython import embed; embed(using=False); os._exit(0)
+
     for _ in range(2000):
 
         # Audio

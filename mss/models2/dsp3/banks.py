@@ -89,6 +89,33 @@ def erb_linear_banks_overlap(
     return banks
 
 
+def erb_linear_banks_triangle(
+    sr: int, 
+    n_bands: int, 
+    max_half_bandwidth: float,
+) -> list[tuple[float, float]]:
+    r"""ERB bank in low frequency and linear band in high frequency.
+
+    Returns:
+        (n_banks, 2)
+    """
+    freqs = np.linspace(0, hz_to_erb(sr / 2), n_bands + 1)
+    freqs = erb_to_hz(freqs)
+
+    if max(np.diff(freqs)) >= max_half_bandwidth:
+        idx = np.argmax(np.diff(freqs) >= max_half_bandwidth)  # (k1,)
+        mel_part = freqs[: idx + 1]  # (k1,)
+        linear_part = np.arange(mel_part[-1] + max_half_bandwidth, sr//2 + max_half_bandwidth, max_half_bandwidth)  # (k2,)
+        freqs = np.concatenate([mel_part, linear_part])  # (k1+k2,)
+        freqs[-1] = sr // 2
+
+    banks = [[freqs[0].item(), freqs[1].item()]]
+    banks += [[freqs[i].item(), freqs[i + 1].item(), freqs[i + 2].item()] for i in range(len(freqs) - 2)]
+    banks += [[freqs[-2].item(), freqs[-1].item()]]
+    
+    return banks
+
+
 def hz_to_erb(f):
     return 21.4 * np.log10(1 + 0.00437 * f)
 
