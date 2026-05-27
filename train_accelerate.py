@@ -13,7 +13,7 @@ from tqdm import tqdm
 import wandb
 # import trackio as wandb
 from mss.utils import parse_yaml, requires_grad, update_ema
-from train import (get_dataset, get_loss_fn, get_model,
+from train2 import (get_dataset, get_loss_fn, get_model,
                    get_optimizer_and_scheduler, get_sampler, validate)
 
 

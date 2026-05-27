@@ -4,9 +4,12 @@ from pathlib import Path
 import h5py
 import json
 import re
+import math
 import numpy as np
+from scipy.optimize import fsolve, root_scalar, newton
 from torch import Tensor
 from mss.utils import fast_sdr
+import matplotlib.pyplot as plt
 # from torchvision.io import read_video, write_video
 
 
@@ -577,6 +580,7 @@ def add22():
     banks = erb_linear_banks(sr=sr, n_bands=n_bands, max_bandwidth=max_bandwidth)
     sb_filter = SubbandFilter(sr, banks, factor, chunk_size=chunk_size).to(device)
     print(banks)
+    bandwidths = [bank[1] - bank[0] for bank in banks]
 
     rs = np.random.RandomState(1234)
     audio = rs.uniform(low=-1, high=1, size=(4, 2, sr * 2))
@@ -592,6 +596,112 @@ def add22():
     from IPython import embed; embed(using=False); os._exit(0)
 
 
+def add23():
+
+    sr = 48000
+    n_bands = 128
+    max_half_bandwidth = 390
+    chunk_size = 16  # Try to tune this to balance RAM and computation speed
+    factor = sr // 800
+
+    from mss.models2.dsp3.banks import exp_linear_banks
+    banks = exp_linear_banks(sr=sr, n_bands=n_bands)
+    bandwidths = [bank[-1] - bank[0] for bank in banks]
+
+    for i in range(len(banks)):
+        print(i, banks[i], bandwidths[i])
+
+
+def add24():
+
+    r = 2
+    rs = []
+    total = 0
+    for i in range(70):
+        rs.append(r)
+        total += r
+        r = r ** 1.03
+
+    print(rs)
+    print(total)
+
+
+def add25():
+
+    n_bands = 128
+    sr = 48000
+
+    max_bw = 390
+    # q = 2**(1/12)
+    q = 1.08
+
+    a1 = (390 * q) / (q - 1) - sr / 2 + n_bands * max_bw
+    a1 = a1 / 390 - 1
+    exp = q ** a1
+    f0 = max_bw / (q - 1) / exp
+
+    n = 1 + math.log((max_bw / f0) / (q - 1)) / math.log(q)
+    n = math.ceil(n)
+
+    # Calibriate f0
+    f0 = max_bw / (q ** n - q ** (n-1))
+
+    freqs = []
+    for i in range(n+1):
+        freqs.append(f0 * q**i)
+
+    n_linear_bands = n_bands - n
+    bw = (sr / 2 - f0 * q ** n) / n_linear_bands
+    for i in range(n_linear_bands):
+        freqs.append(freqs[-1] + bw)
+
+    freqs[-1] = sr / 2
+
+    plt.plot(freqs)
+    plt.savefig("_zz.pdf")
+
+    from IPython import embed; embed(using=False); os._exit(0)
+
+
+def add26():
+    from mss.models2.dsp3.banks import mel_linear_banks, erb_linear_banks_triangle, exp_linear_banks2
+
+    sr = 48000
+    n_bands = 128
+    max_bandwidth = 390
+
+    lines = []
+
+    banks = mel_linear_banks(sr, 112, max_bandwidth)
+    freqs = [bank[0] for bank in banks]
+    line, = plt.plot(freqs, label="mel_linear")
+    lines.append(line)
+
+    banks = erb_linear_banks_triangle(sr, 112, max_bandwidth)
+    freqs = [bank[0] for bank in banks]
+    line, = plt.plot(freqs, label="erb_linear_banks_triangle")
+    lines.append(line)
+
+    banks = exp_linear_banks2(sr, n_bands, max_bandwidth, q=1.05)
+    freqs = [bank[0] for bank in banks]
+    line, = plt.plot(freqs, label="exp_linear_banks2, q=1.05")
+    lines.append(line)
+
+    banks = exp_linear_banks2(sr, n_bands, max_bandwidth, q=1.08)
+    freqs = [bank[0] for bank in banks]
+    line, = plt.plot(freqs, label="exp_linear_banks2, q=1.08")
+    lines.append(line)
+
+    banks = exp_linear_banks2(sr, n_bands, max_bandwidth, q=1.2)
+    freqs = [bank[0] for bank in banks]
+    line, = plt.plot(freqs, label="exp_linear_banks2, q=1.2")
+    lines.append(line)
+
+    plt.legend(handles=lines)
+    plt.savefig("_zz.pdf")
+
+    from IPython import embed; embed(using=False); os._exit(0)
+
 
 if __name__ == '__main__':
-    add22()
+    add26()

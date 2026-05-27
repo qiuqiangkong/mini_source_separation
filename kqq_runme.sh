@@ -227,11 +227,13 @@ CUDA_VISIBLE_DEVICES=0 python evaluate.py \
 # 109a.yaml     wav conv1d (jimmy), others same as 89c2
 # jimmy56b.yaml 
 # 110a.yaml     erb band, others same as jimmy56b.yaml
-# + 111a.yaml     trianle band, others same as 89c2
-# 111b.yaml     overlap band, others same as 89c2
+# ++ 111a.yaml     trianle band, others same as 89c2
+# (no) 111b.yaml     overlap band, others same as 89c2
 # 112a.yaml     lowband fractional stft, others same as 89c2
-# 113a.yaml     mel bandsplit, others same as 107a2
-# 114a.yaml     patch=(2, 1), others same as 107a2
+# 113a.yaml     mel bandsplit unet, others same as 107a2
+# 114a.yaml     patch=(2, 1), others same as 89c2
+# 115a.yaml     exp band, others same as 111a
+# 115b.yaml     exp_linear2 band, others same as 111a
 
 # dsp/dsp3 filter compare
 # 
