@@ -15,7 +15,7 @@ from mss.models.rope import RoPE
 from mss.utils import fast_sdr
 
 
-class BSRoformer115e(nn.Module):
+class BSRoformer115f(nn.Module):
     def __init__(
         self,
         audio_channels=2,
@@ -29,7 +29,7 @@ class BSRoformer115e(nn.Module):
 
         super().__init__()
         
-        n_bands = 120
+        n_bands = 124
         self.n_fft = 32
         self.hop_length = 8
         self.patch_size_t = 4
@@ -38,7 +38,7 @@ class BSRoformer115e(nn.Module):
         chunk_size = 16
 
         # Subband filter
-        banks = erb_linear_ex_banks_triangle(sr=sample_rate, n_bands=n_bands, max_half_bandwidth=max_half_bandwidth, a=21.4, b=0.001)
+        banks = erb_linear_ex_banks_triangle(sr=sample_rate, n_bands=n_bands, max_half_bandwidth=max_half_bandwidth, a=21.4, b=0.0005)
         self.sb_filter = SubbandFilter(sample_rate, banks, factor, chunk_size=chunk_size)
         
         # Patch
