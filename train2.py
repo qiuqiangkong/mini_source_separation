@@ -905,6 +905,10 @@ def get_model(
         from mss.models2.bsroformer115d import BSRoformer115d
         model = BSRoformer115d(**configs["model"])
 
+    elif name == "BSRoformer115e":
+        from mss.models2.bsroformer115e import BSRoformer115e
+        model = BSRoformer115e(**configs["model"])
+
     elif name == "BSRoformer116a":
         from mss.models2.bsroformer116a import BSRoformer116a
         model = BSRoformer116a(**configs["model"])

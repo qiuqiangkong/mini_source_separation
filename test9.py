@@ -690,7 +690,7 @@ def add26():
 
     banks = erb_linear_ex_banks_triangle(sr, 120, max_bandwidth, a=21.4, b=0.001)
     freqs = [bank[0] for bank in banks]
-    line, = plt.plot(freqs, label="erb_linear_ex_banks_triangle, b=x")
+    line, = plt.plot(freqs, label="erb_linear_ex_banks_triangle, b=0.001")
     lines.append(line)
 
     # bw = [bank[1] - bank[0] for bank in banks]
