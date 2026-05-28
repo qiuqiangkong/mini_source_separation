@@ -664,7 +664,7 @@ def add25():
 
 
 def add26():
-    from mss.models2.dsp3.banks import mel_linear_banks, erb_linear_banks_triangle, exp_linear_banks2
+    from mss.models2.dsp3.banks import mel_linear_banks_triangle, erb_linear_banks_triangle, exp_linear_banks2, erb_linear_ex_banks_triangle
 
     sr = 48000
     n_bands = 128
@@ -672,7 +672,7 @@ def add26():
 
     lines = []
 
-    banks = mel_linear_banks(sr, 112, max_bandwidth)
+    banks = mel_linear_banks_triangle(sr, 118, max_bandwidth)
     freqs = [bank[0] for bank in banks]
     line, = plt.plot(freqs, label="mel_linear")
     lines.append(line)
@@ -681,6 +681,21 @@ def add26():
     freqs = [bank[0] for bank in banks]
     line, = plt.plot(freqs, label="erb_linear_banks_triangle")
     lines.append(line)
+
+    # banks = erb_linear_ex_banks_triangle(sr, 112, max_bandwidth, a=21.4, b=0.01)
+    banks = erb_linear_ex_banks_triangle(sr, 103, max_bandwidth, a=21.4, b=0.02)
+    freqs = [bank[0] for bank in banks]
+    line, = plt.plot(freqs, label="erb_linear_ex_banks_triangle, b=0.02")
+    lines.append(line)
+
+    banks = erb_linear_ex_banks_triangle(sr, 120, max_bandwidth, a=21.4, b=0.001)
+    freqs = [bank[0] for bank in banks]
+    line, = plt.plot(freqs, label="erb_linear_ex_banks_triangle, b=x")
+    lines.append(line)
+
+    # bw = [bank[1] - bank[0] for bank in banks]
+    # for i in range(len(banks)):
+    #     print(i, banks[i][0], bw[i])
 
     banks = exp_linear_banks2(sr, n_bands, max_bandwidth, q=1.05)
     freqs = [bank[0] for bank in banks]
@@ -699,6 +714,8 @@ def add26():
 
     plt.legend(handles=lines)
     plt.savefig("_zz.pdf")
+
+    
 
     from IPython import embed; embed(using=False); os._exit(0)
 

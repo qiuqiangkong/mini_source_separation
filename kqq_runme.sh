@@ -232,8 +232,12 @@ CUDA_VISIBLE_DEVICES=0 python evaluate.py \
 # 112a.yaml     lowband fractional stft, others same as 89c2
 # 113a.yaml     mel bandsplit unet, others same as 107a2
 # 114a.yaml     patch=(2, 1), others same as 89c2
+# 114b.yaml     patch=(1, 1), others same as 89c2
 # 115a.yaml     exp band, others same as 111a
 # 115b.yaml     exp_linear2 band, others same as 111a
+# 115c.yaml     erb, b=0.02, others same as 111a
+# 115d.yaml     mel, others same as 111a
+# 116a.yaml     band wise matrix, others same as 89c2
 
 # dsp/dsp3 filter compare
 # 

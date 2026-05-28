@@ -238,6 +238,7 @@ class Jimmy56b(Fourier):
         Returns:
             Separated audio of shape (b, c, l).
         """
+        
         # --- Encode ---
         # Complex spectrum
         complex_sp = self.stft(audio)
