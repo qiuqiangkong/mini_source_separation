@@ -664,7 +664,7 @@ def add25():
 
 
 def add26():
-    from mss.models2.dsp3.banks import mel_linear_banks_triangle, erb_linear_banks_triangle, exp_linear_banks2, erb_linear_ex_banks_triangle
+    from mss.models2.dsp3.banks import mel_linear_banks_triangle, erb_linear_banks_triangle, exp_linear_banks2, erb_linear_ex_banks_triangle, linear_banks_triangle
 
     sr = 48000
     n_bands = 128
@@ -697,6 +697,17 @@ def add26():
     freqs = [bank[0] for bank in banks]
     line, = plt.plot(freqs, label="erb_linear_ex_banks_triangle, b=0.0005")
     lines.append(line)
+
+    banks = erb_linear_ex_banks_triangle(sr, 127, max_bandwidth, a=21.4, b=0.0001)
+    freqs = [bank[0] for bank in banks]
+    line, = plt.plot(freqs, label="erb_linear_ex_banks_triangle, b=0.0001")
+    lines.append(line)
+
+    banks = linear_banks_triangle(sr, 128)
+    freqs = [bank[0] for bank in banks]
+    line, = plt.plot(freqs, label="linear_band")
+    lines.append(line)
+    # from IPython import embed; embed(using=False); os._exit(0)
 
     # bw = [bank[1] - bank[0] for bank in banks]
     # for i in range(len(banks)):

@@ -238,8 +238,12 @@ CUDA_VISIBLE_DEVICES=0 python evaluate.py \
 # 115c.yaml     erb, b=0.02, others same as 111a
 # 115d.yaml     mel, others same as 111a
 # 115e.yaml     erb, b=0.001, others same as 111a
-# 115e.yaml     erb, b=0.0005, others same as 111a
+# 115f.yaml     erb, b=0.0005, others same as 111a
+# (to run) 115g     erb, b=0.0001, others same as 111a
+# (to run) 115h     linear band, others same as 111a
 # 116a.yaml     band wise matrix, others same as 89c2
+
+
 
 # dsp/dsp3 filter compare
 # 

@@ -8,14 +8,14 @@ import torch.nn.functional as F
 from einops import rearrange
 from torch import Tensor
 
-from mss.models2.dsp3.banks import mel_linear_banks, erb_linear_banks
-from mss.models2.dsp3.subband_fast import SubbandFilter
+from mss.models2.dsp3.banks import erb_linear_ex_banks_triangle
+from mss.models2.dsp3.subband_fast_triangle import SubbandFilter
 from mss.models.attention import Block
 from mss.models.rope import RoPE
 from mss.utils import fast_sdr
 
 
-class BSRoformer116a(nn.Module):
+class BSRoformer115g(nn.Module):
     def __init__(
         self,
         audio_channels=2,
@@ -29,23 +29,19 @@ class BSRoformer116a(nn.Module):
 
         super().__init__()
         
-        n_bands = 112
-        self.n_fft = 16
-        self.hop_length = 4
+        n_bands = 127
+        self.n_fft = 32
+        self.hop_length = 8
         self.patch_size_t = 4
-        max_bandwidth = 390
-        factor = sample_rate // 400
+        max_half_bandwidth = 390
+        factor = sample_rate // 800
         chunk_size = 16
 
         # Subband filter
-        
-        banks = erb_linear_banks(sr=sample_rate, n_bands=n_bands, max_bandwidth=max_bandwidth)
+        banks = erb_linear_ex_banks_triangle(sr=sample_rate, n_bands=n_bands, max_half_bandwidth=max_half_bandwidth, a=21.4, b=0.0001)
         self.sb_filter = SubbandFilter(sample_rate, banks, factor, chunk_size=chunk_size)
+        # from IPython import embed; embed(using=False); os._exit(0)
         
-        N = self.n_fft * 2
-        self.pre_w = nn.Parameter(0.01 * torch.randn(len(banks), N, N))
-        self.post_w = nn.Parameter(0.01 * torch.randn(len(banks), N, N))
-
         # Patch
         in_channels = audio_channels * self.n_fft * 2
         self.patch = Patch(in_channels, dim, (self.patch_size_t, 1))
@@ -86,10 +82,6 @@ class BSRoformer116a(nn.Module):
 
         # Patchify
         B, C, K, T = complex_sp.shape[0 : 4]
-        x = rearrange(torch.view_as_real(complex_sp), 'b c k t f x -> b c t k (f x)')
-        x = torch.einsum("bctkf,kfg->bctkg", x, self.pre_w)
-        x = rearrange(x, 'b c t k (f x) -> b (c f x) t k', x=2)
-
         x = rearrange(torch.view_as_real(complex_sp), 'b c k t f x -> b (c f x) t k')
         x = self.pad_tensor(x, self.patch_size_t)  # x: (b, d, t, k)
         x = self.patch(x)
@@ -108,11 +100,7 @@ class BSRoformer116a(nn.Module):
         # Unpatchify
         x = self.unpatch(x)
         x = x[:, :, 0 : T, :]
-
-        x = rearrange(x, 'b (c f x) t k -> b c t k (f x)', c=C, x=2)
-        x = torch.einsum("bctkg,kgf->bctkf", x, self.post_w)
-        x = rearrange(x, 'b c t k (f x) -> b c k t f x', x=2)
-
+        x = rearrange(x, 'b (c f x) t k -> b c k t f x', c=C, x=2)
         mask = torch.view_as_complex(x.contiguous())
         sep_stft = complex_sp * mask
 

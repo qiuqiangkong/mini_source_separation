@@ -253,6 +253,23 @@ def exp_linear_banks2(
     return banks
 
 
+def linear_banks_triangle(
+    sr: int, 
+    n_bands: int, 
+) -> list[tuple[float, float]]:
+    r"""ERB bank in low frequency and linear band in high frequency.
+
+    Returns:
+        (n_banks, 2)
+    """
+    
+    freqs = np.linspace(0, sr / 2, n_bands)
+    banks = [[freqs[0].item(), freqs[1].item()]]
+    banks += [[freqs[i].item(), freqs[i + 1].item(), freqs[i + 2].item()] for i in range(len(freqs) - 2)]
+    banks += [[freqs[-2].item(), freqs[-1].item()]]
+    
+    return banks
+
 
 def hz_to_erb(f):
     return 21.4 * np.log10(1 + 0.00437 * f)
