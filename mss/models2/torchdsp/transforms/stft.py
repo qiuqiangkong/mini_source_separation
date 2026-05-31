@@ -16,24 +16,35 @@ class STFTLearnable(nn.Module):
         n_fft: int, 
         hop_length: int, 
         n_fractions=1, 
+        dft_init=True,
         learnable=True
     ):
+        r"""
+        f: freq_bins
+        r: n_fractions
+        n: n_samples
+        """
         super().__init__()
         self.n_fft = n_fft
         self.hop_length = hop_length
         self.register_buffer("window", torch.hann_window(n_fft))
 
         N = n_fft
-        r = n_fractions
-        k = torch.arange(0, N * r)  # (f,)
-        n = torch.arange(0, N)  # (n,)
-        kn = torch.outer(k, n)  # (f, n)
-        w = torch.exp(-1.j * 2 * math.pi / (N * r) * kn) / math.sqrt(N * r)  # (f, n)
+        R = n_fractions
+
+        if dft_init:    
+            k = torch.arange(0, N * R)  # (f*r,)
+            n = torch.arange(0, N)  # (n,)
+            kn = torch.outer(k, n)  # (f, n)
+            w = torch.exp(-1.j * 2 * math.pi / (N * R) * kn) / math.sqrt(N * R)  # (f*r, n)
+        else:
+            w = torch.empty(N * R, N)
+            torch.nn.init.xavier_uniform_(w)  # (f*r, n)
 
         if learnable:
-            self.w = nn.Parameter(w)
+            self.w = nn.Parameter(w)  # (f*r, n)
         else:
-            self.register_buffer("w", w)
+            self.register_buffer("w", w)  # (f*r, n)
 
     def analysis(self, x: Tensor) -> Tensor:
         r"""STFT.
@@ -45,10 +56,10 @@ class STFTLearnable(nn.Module):
         f: freq_bins
 
         Args:
-            x: (b, l)
+            x: (b, l), complex
 
         Returns:
-            out: (b, t, f)
+            out: (b, t, f), complex
         """
         N = self.n_fft
         x = F.pad(x, (N // 2, N // 2), mode="reflect")  # (b, l)
@@ -68,10 +79,10 @@ class STFTLearnable(nn.Module):
         l: audio_samples
 
         Args:
-            x: (b, t, f)
+            x: (b, t, f), complex
 
         Returns:
-            x: (b, l)
+            x: (b, l), complex
         """
         x = x @ self.w.conj()  # (b, t, n)
 
@@ -101,7 +112,7 @@ if __name__ == "__main__":
     n_fft = 2048
     hop_length = 480
 
-    stft = STFTLearnable(n_fft, hop_length)
+    stft = STFTLearnable(n_fft, hop_length, n_fractions=1, dft_init=True, learnable=True)
 
     # Data
     L = 48000
