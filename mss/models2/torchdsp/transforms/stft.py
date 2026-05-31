@@ -10,8 +10,14 @@ from torch import Tensor
 from mss.models2.torchdsp.functional.overlap_add import overlap_add
 
 
-class STFT(nn.Module):
-    def __init__(self, n_fft: int, hop_length: int, n_fractions=1, learnable=True):
+class STFTLearnable(nn.Module):
+    def __init__(
+        self, 
+        n_fft: int, 
+        hop_length: int, 
+        n_fractions=1, 
+        learnable=True
+    ):
         super().__init__()
         self.n_fft = n_fft
         self.hop_length = hop_length
@@ -95,7 +101,7 @@ if __name__ == "__main__":
     n_fft = 2048
     hop_length = 480
 
-    stft = STFT(n_fft, hop_length)
+    stft = STFTLearnable(n_fft, hop_length)
 
     # Data
     L = 48000
