@@ -245,7 +245,7 @@ CUDA_VISIBLE_DEVICES=0 python evaluate.py \
 # - 116a.yaml     band wise matrix, others same as 89c2
 # 117a.yaml     glu, others same as 115d
 # 118a.yaml     glu, unet, others same as 117a
-
+# 119a.yaml     spectral constant loss, others same as 115d
 
 # dsp/dsp3 filter compare
 # 

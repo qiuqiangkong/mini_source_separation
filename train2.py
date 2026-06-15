@@ -1016,6 +1016,11 @@ def get_loss_fn(configs: dict) -> callable:
         device = configs["train"]["device"]
         return L1SubbandStftMulti().to(device)
 
+    elif loss_type == "l1_wav_l1_multistft_sc":
+        from mss.losses.wav_stft import MultiResolutionSTFTLossSC
+        device = configs["train"]["device"]
+        return MultiResolutionSTFTLossSC().to(device)
+
     else:
         raise ValueError(loss_type)
 

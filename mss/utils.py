@@ -133,6 +133,83 @@ def separate_overlap_add(
     return y
 
 
+def separate_overlap_add2(
+    model: nn.Module, 
+    audio: Tensor, 
+    segment_samples: int, 
+    hop_length: int,
+    batch_size: int
+):
+    r"""Split audio into clips. Separate each clip. Concatenate the results.
+
+    b: batch_size
+    c: channels_num
+    L: audio_samples
+    l: segment_samples
+    n: segments_num
+
+    Args:
+        model (nn.Module)
+        audio (np.ndarray): (c, L)
+        segment_samples (int)
+        hop_length (int)
+        batch_size (int)
+
+    Returns:
+        output: (c, L)
+    """
+
+    device = next(model.parameters()).device
+    
+    audio_samples = audio.shape[1]
+    
+    if audio_samples < segment_samples:
+        full_samples = segment_samples
+    else:
+        full_samples = segment_samples + math.ceil((audio_samples - segment_samples) / hop_length) * hop_length
+    
+    audio = librosa.util.fix_length(data=audio, size=full_samples, axis=-1)  # (c, n*l)
+
+    window = get_window(window="hann", Nx=segment_samples)
+    
+    segments = librosa.util.frame(
+        audio, 
+        frame_length=segment_samples, 
+        hop_length=hop_length
+    )  # (c, l, n)
+
+    segments = rearrange(segments, 'c l n -> n c l')  # (n, c, l)
+    clips_num = segments.shape[0]
+
+    p = 0
+    outputs = []
+
+    while p < clips_num:
+
+        x = torch.Tensor(segments[p : p + batch_size].copy()).to(device)  # (b, c, t)
+
+        with torch.no_grad():
+            model.eval()
+            out = model(x)  # (b, c, l)
+
+        outputs.append(out.cpu().numpy())
+        p += batch_size
+
+    outputs = np.concatenate(outputs, axis=0)  # (n, c, l)
+
+    y = np.zeros_like(audio)
+    ola = np.zeros_like(audio)
+
+    for i in range(clips_num):
+        y[:, i * hop_length : i * hop_length + segment_samples] += outputs[i] * window
+        ola[:, i * hop_length : i * hop_length + segment_samples] += window
+
+    y = y / np.clip(ola, 1e-8, np.inf)
+    y = y[:, 0 : audio_samples]
+
+    return y
+
+
 def calculate_sdr(
     output: np.ndarray, 
     target: np.ndarray, 
