@@ -9,7 +9,7 @@ import numpy as np
 import soundfile
 
 from mss.utils import parse_yaml, separate_overlap_add, separate_overlap_add2, calculate_sdr
-from train2 import get_model, validate
+from train2 import get_model
 
 
 def evaluate(args) -> None:
@@ -36,19 +36,9 @@ def evaluate(args) -> None:
         model=model,
         split="test",
         audios_num=None,
-        hop_ratio=1
-    )
-    
-    '''
-    sdr = validate(
-        configs=configs,
-        model=model,
-        split="test",
-        audios_num=5,
         hop_ratio=4
     )
-    '''
-
+    
     print("====== Overall metrics ====== ")
     print(f"Median SDR: {sdr:.2f} dB")
 
