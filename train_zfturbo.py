@@ -22,6 +22,8 @@ import wandb
 from mss.utils import (parse_yaml, requires_grad, update_ema, LinearWarmUp, 
     separate_overlap_add, calculate_sdr)
 
+from mss.zfturbo.dataset import zfturbo
+
 
 def train(args) -> None:
     r"""Train a music source separation system."""
@@ -40,6 +42,14 @@ def train(args) -> None:
     config_name = Path(config_path).stem
     ckpts_dir = Path("./checkpoints", filename, config_name)
     Path(ckpts_dir).mkdir(parents=True, exist_ok=True)
+
+    train_loader = prepare_data(
+        config, 
+        args, 
+        batch_size=configs["train"]["batch_size_per_device"]
+    )
+
+    from IPython import embed; embed(using=False); os._exit(0)
 
     # Datasets
     train_dataset = get_dataset(configs, split="train")
@@ -69,7 +79,7 @@ def train(args) -> None:
     ema.eval()  # EMA model should always be in eval mode
 
     # Loss function
-    loss_fn = get_loss_fn(configs).to(device)
+    loss_fn = get_loss_fn(configs)
 
     # Optimizer
     optimizer, scheduler = get_optimizer_and_scheduler(
@@ -99,14 +109,12 @@ def train(args) -> None:
         # 1.3 Optimize
         optimizer.zero_grad()  # Reset all parameter.grad to 0
         loss.backward()  # Update all parameter.grad
-        # torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         optimizer.step()  # Update all parameters based on all parameter.grad
         scheduler.step()
         update_ema(ema, model, decay=0.999)
 
         if step % 100 == 0:
-            grad_norm = get_grad_norm(model)
-            print(f"{loss.item():.04f}", f"{grad_norm:.04f}")
+            print(loss)
 
         # ------ 2. Evaluation ------
         # 2.1 Evaluate
@@ -148,18 +156,7 @@ def train(args) -> None:
 
         if step == configs["train"]["training_steps"]:
             break
-
-
-def get_grad_norm(model):
-    total_norm = 0.0
-    for p in model.parameters():
-        if p.grad is not None:
-            param_norm = p.grad.detach().norm(2)
-            total_norm += param_norm.item() ** 2
-
-    total_norm = total_norm ** 0.5
-    return total_norm
-
+        
 
 def get_dataset(
     configs: dict, 
@@ -997,10 +994,6 @@ def get_loss_fn(configs: dict) -> callable:
         from mss.losses.wav_stft import MultiResolutionSTFTLoss
         return MultiResolutionSTFTLoss()
 
-    elif loss_type == "l1_wav_l1_multistft_l1_logmel":
-        from mss.losses.wav_stft_logmel import MultiResolutionSTFTLogMelLoss
-        return MultiResolutionSTFTLogMelLoss()
-
     elif loss_type == "l1_wav_l1_multistft_2048":
         from mss.losses.wav_stft import MultiResolutionSTFTLoss2048
         return MultiResolutionSTFTLoss2048()
@@ -1045,56 +1038,6 @@ def get_loss_fn(configs: dict) -> callable:
         from mss.losses.wav_stft import MultiResolutionSTFTLossSC
         device = configs["train"]["device"]
         return MultiResolutionSTFTLossSC().to(device)
-
-    elif loss_type == "loss_01a":
-        from mss.losses.loss_01a import Loss01a
-        device = configs["train"]["device"]
-        return Loss01a().to(device)
-
-    elif loss_type == "loss_02a":
-        from mss.losses.loss_02a import Loss02a
-        device = configs["train"]["device"]
-        return Loss02a().to(device)
-
-    elif loss_type == "loss_03a":
-        from mss.losses.loss_03a import Loss03a
-        device = configs["train"]["device"]
-        return Loss03a().to(device)
-
-    elif loss_type == "loss_03b":
-        from mss.losses.loss_03b import Loss03b
-        device = configs["train"]["device"]
-        return Loss03b().to(device)
-
-    elif loss_type == "loss_04a":
-        from mss.losses.loss_04a import Loss04a
-        device = configs["train"]["device"]
-        return Loss04a().to(device)
-
-    elif loss_type == "loss_05a":
-        from mss.losses.loss_05a import Loss05a
-        device = configs["train"]["device"]
-        return Loss05a().to(device)
-
-    elif loss_type == "loss_06a":
-        from mss.losses.loss_06a import Loss06a
-        device = configs["train"]["device"]
-        return Loss06a().to(device)
-
-    elif loss_type == "loss_07a":
-        from mss.losses.loss_07a import Loss07a
-        device = configs["train"]["device"]
-        return Loss07a().to(device)
-
-    elif loss_type == "loss_08a":
-        from mss.losses.loss_08a import Loss08a
-        device = configs["train"]["device"]
-        return Loss08a().to(device)
-
-    elif loss_type == "loss_09a":
-        from mss.losses.loss_09a import Loss09a
-        device = configs["train"]["device"]
-        return Loss09a().to(device)
 
     else:
         raise ValueError(loss_type)

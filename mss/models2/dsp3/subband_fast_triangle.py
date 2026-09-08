@@ -297,7 +297,6 @@ if __name__ == '__main__':
     # Melbanks
     banks = erb_linear_banks_triangle(sr=sr, n_bands=n_bands, max_half_bandwidth=max_half_bandwidth)
     sb_filter = SubbandFilter(sr, banks, factor, chunk_size=chunk_size).to(device)
-    from IPython import embed; embed(using=False); os._exit(0)
 
     for _ in range(2000):
 

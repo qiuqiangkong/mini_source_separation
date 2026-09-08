@@ -99,7 +99,7 @@ def train(args) -> None:
         # 1.3 Optimize
         optimizer.zero_grad()  # Reset all parameter.grad to 0
         loss.backward()  # Update all parameter.grad
-        # torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         optimizer.step()  # Update all parameters based on all parameter.grad
         scheduler.step()
         update_ema(ema, model, decay=0.999)
@@ -1086,15 +1086,25 @@ def get_loss_fn(configs: dict) -> callable:
         device = configs["train"]["device"]
         return Loss07a().to(device)
 
-    elif loss_type == "loss_08a":
-        from mss.losses.loss_08a import Loss08a
-        device = configs["train"]["device"]
-        return Loss08a().to(device)
-
     elif loss_type == "loss_09a":
         from mss.losses.loss_09a import Loss09a
         device = configs["train"]["device"]
         return Loss09a().to(device)
+
+    elif loss_type == "loss_09b":
+        from mss.losses.loss_09b import Loss09b
+        device = configs["train"]["device"]
+        return Loss09b().to(device)
+
+    elif loss_type == "loss_10a":
+        from mss.losses.loss_10a import Loss10a
+        device = configs["train"]["device"]
+        return Loss10a().to(device)
+
+    elif loss_type == "loss_11a":
+        from mss.losses.loss_11a import Loss11a
+        device = configs["train"]["device"]
+        return Loss11a().to(device)
 
     else:
         raise ValueError(loss_type)

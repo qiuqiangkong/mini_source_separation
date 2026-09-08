@@ -5,7 +5,7 @@ import librosa
 
 
 class RandomResample:
-    r"""Applies random resample to the audio. 
+    r"""Applies random resample to the audio. 0.95: Speed faster and pitch higher; 1.05 Or speed slower and pitch lower.
 
     NumPy is be faster than PyTorch when the source and target sample rates 
     have a small GCD.

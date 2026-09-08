@@ -16,8 +16,9 @@ def evaluate(args) -> None:
     r"""Evaluate on the test set of MUSDB18HQ."""
 
     # Arguments and parameters
-    config_yaml = args.config_yaml
-    ckpt_path = args.ckpt_path
+    config_yaml = Path(args.config_yaml)
+    ckpt_path = Path(args.ckpt_path)
+    out_dir = Path(args.out_dir)
     device = "cuda"
 
     # Default parameters
@@ -36,7 +37,8 @@ def evaluate(args) -> None:
         model=model,
         split="test",
         audios_num=None,
-        hop_ratio=4
+        hop_ratio=4,
+        out_dir=out_dir
     )
     
     print("====== Overall metrics ====== ")
@@ -48,7 +50,8 @@ def validate(
     model: nn.Module,
     split: str,
     audios_num: None | int = None,
-    hop_ratio=4
+    hop_ratio=4,
+    out_dir=None
 ) -> float:
     r"""Validate the model on part of data.
 
@@ -103,11 +106,14 @@ def validate(
             target=data[target_stem], 
             sr=sr, 
         )
-        
         print("{}/{}, {}, SDR: {:.2f} dB".format(idx, len(audio_names), audio_name, sdr))
-
         sdrs.append(sdr)
 
+        if out_dir:
+            out_dir.mkdir(parents=True, exist_ok=True)
+            out_path = out_dir / f"{audio_name}.wav"
+            soundfile.write(file=out_path, data=output.T, samplerate=sr)
+            
     return np.nanmedian(sdrs)
 
 
@@ -116,6 +122,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--config_yaml', type=str, required=True)
     parser.add_argument('--ckpt_path', type=str, required=True)
+    parser.add_argument('--out_dir', type=str)
 
     args = parser.parse_args()
 

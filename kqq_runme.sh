@@ -13,6 +13,11 @@ CUDA_VISIBLE_DEVICES=0 python inference.py \
 CUDA_VISIBLE_DEVICES=0 python evaluate.py \
     --config="./configs/small.yaml" \
     --ckpt_path="./checkpoints/tmp_accelerate/01a/step=0_ema.pth"
+
+CUDA_VISIBLE_DEVICES=7 python evaluate.py \
+    --config="./kqq_configs/115d_drums.yaml" \
+    --ckpt_path="./checkpoints/train2/115d_drums/step=150000_ema.pth" \
+    --out_dir="_tmp/drums"
     
 # train.py      main
 # train2.py     multi classes
@@ -236,7 +241,7 @@ CUDA_VISIBLE_DEVICES=0 python evaluate.py \
 # 115a.yaml     exp band, others same as 111a
 # 115b.yaml     exp_linear2 band, others same as 111a
 # 115c.yaml     erb, b=0.02, others same as 111a
-# + 115d.yaml     mel, others same as 111a
+# + 115d.yaml     mel, others same as 111a, good.
 # 115e.yaml     erb, b=0.001, others same as 111a
 # 115f.yaml     erb, b=0.0005, others same as 111a
 # 115g.yaml     erb, b=0.0001, others same as 111a
@@ -246,12 +251,54 @@ CUDA_VISIBLE_DEVICES=0 python evaluate.py \
 # 117a.yaml     glu, others same as 115d
 # 118a.yaml     glu, unet, others same as 117a
 # 119a.yaml     spectral constant loss, others same as 115d
+# 120a_bass.yaml    win=128, hop=8, patch=(4, 1), others same as 115d
+# 121a_bass.yaml    win=128, hop=32, patch=(1, 1) others same as 115d
 
+# 122a_bass.yaml    train3b, stem aug, pitch aug +-0, others same as 115d
+# 122b_bass.yaml    train3b, stem aug, pitch aug +-2, others same as 115d
+# 122c_bass.yaml    train3b, stem aug, pitch aug +-4, others same as 115d
+# 123a.yaml     log mel loss, others same as 115d
+
+# 124a.yaml     loss_01a, l1 wav loss, others same as 115d, -0.8 dB
+# 125a.yaml     loss_02a, sp loss, others same as 115d, -0.4 dB
+# + 125b.yaml     same as 125a, grad clip 1.0
+# 126a.yaml     loss_03a, multi sp loss, others same as 115d
+# 126b.yaml     loss_03a, multi sp loss, hop=147, others same as 115d
+# 127a.yaml     loss_04a, log sp loss, others same as 115d, not work.
+# 128a.yaml     loss_05a, log(1+x) loss, others same as 115d
+# 129a.yaml     loss_06a, sdr loss, win=2048, others same as 115d
+# 130a.yaml     loss_07a, wav sdr loss2, win=2048, others same as 125b, train2b
+# 131a.yaml     loss_08a, log sp, others same as 125a
+
+# train2b.py  clip norm
+# 132a.yaml      loss_09a, sp loss + wav sdr loss, others as 125b
+# 132b.yaml      loss_09a, sp loss + wav sdr loss 2s, others as 125b
+# 133a.yaml      loss_10a, sp loss + log sp loss, others as 125b
+# 134a.yaml      loss_11a, sp loss + mel loss, others as 125b
+
+# train4_01a.yaml      zfturbo aug, others same as 115d
+
+# zf_01a.yaml   bass, others same as 115d
+
+# =============
+# musdb18hq_mix.py  mix_src + aug
+# musdb18hq_mix2.py  mix_src + stem-wise aug
+
+# =============
+# random_song_sampler_mix2.py  mix stem-wise sampler
+
+# =============
+# + train2b.py: clip norm
+# --- train3.py augmentation ---
+# --- train3b.py: stem-wise augmentation ---
+# --- train_zfturbo.py
+# --- train4.py zfturbo augmentation
+# 70.yaml       
+
+
+# =============
 # dsp/dsp3 filter compare
 # 
-
-# --- train3.py augmentation ---
-# 70.yaml       
 
 # ====== Reconstruct ======
 # recon_01a.yaml    recon_stft_fix, loss=0
@@ -264,5 +311,9 @@ CUDA_VISIBLE_DEVICES=0 python evaluate.py \
 # recon_04a.yaml    band_split_avg, 
 # recon_05a.yaml    band_split_mul_stft
 # recon_06a.yaml    band_split_mul_stft
+
+
+# 115d, 150k, vocals: 9.05 bass: 5.96 drums: 6.94 other: 5.66
+
 
 

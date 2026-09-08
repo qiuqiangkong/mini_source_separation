@@ -8,6 +8,9 @@ import os
 from copy import deepcopy
 from pathlib import Path
 from typing import Iterable
+from ml_collections import ConfigDict
+import yaml
+import soundfile
 
 import librosa
 import numpy as np
@@ -21,6 +24,7 @@ import wandb
 # import trackio as wandb
 from mss.utils import (parse_yaml, requires_grad, update_ema, LinearWarmUp, 
     separate_overlap_add, calculate_sdr)
+from mss.datasets.zfturbo_dataset import prepare_data
 
 
 def train(args) -> None:
@@ -41,20 +45,37 @@ def train(args) -> None:
     ckpts_dir = Path("./checkpoints", filename, config_name)
     Path(ckpts_dir).mkdir(parents=True, exist_ok=True)
 
+    # from IPython import embed; embed(using=False); os._exit(0)
+
     # Datasets
-    train_dataset = get_dataset(configs, split="train")
+    # train_dataset = get_dataset(configs, split="train")
 
     # Sampler
-    train_sampler = get_sampler(configs, train_dataset)
+    # train_sampler = get_sampler(configs, train_dataset)
+
+
+    batch_size = configs["train"]["batch_size_per_device"]
+    args.data_path = "./datasets/musdb18hq/train"
+    args.results_path = "./_tmp_zfturbo"
+    args.num_workers = 0
+    args.persistent_workers = False
+    args.prefetch_factor = None
+    args.pin_memory = True
+    args.dataset_type = 1
+
+    # model, config = get_model_from_config(args.model_type, args.config_path)
+    with open(config_path, 'r') as f:
+        config = ConfigDict(yaml.load(f, Loader=yaml.FullLoader))
+    train_dataloader = prepare_data(config, args, batch_size)
 
     # Dataloader
-    train_dataloader = DataLoader(
-        dataset=train_dataset, 
-        batch_size=configs["train"]["batch_size_per_device"], 
-        sampler=train_sampler,
-        num_workers=configs["train"]["num_workers"], 
-        pin_memory=True
-    )
+    # train_dataloader = DataLoader(
+    #     dataset=train_dataset, 
+    #     batch_size=configs["train"]["batch_size_per_device"], 
+    #     sampler=train_sampler,
+    #     num_workers=configs["train"]["num_workers"], 
+    #     pin_memory=True
+    # )
 
     # Model
     model = get_model(
@@ -81,73 +102,84 @@ def train(args) -> None:
     if wandb_log:
         wandb.init(project="mss", name=f"{config_name}")
 
-    # Train
-    for step, data in enumerate(tqdm(train_dataloader)):
+    step = 0
+    while True:
+        for data in train_dataloader:
+            # soundfile.write(file="_zz.wav", data=data[1][0, 0], samplerate=48000)
+            # data[0]
 
-        # ------ 1. Training ------
-        # 1.1 Data
-        target = data["target"].to(device)
-        mixture = data["mixture"].to(device)
+            target = data[0][:, 1, :, :].to(device)  # bass
+            # target = data[0][:, 0, :, :].to(device)  # drums 
+            mixture = data[0].sum(dim=1).to(device)
+            # target = data[0][:, 1, :, :].to(device)  # (b, c, l)
+            # mixture = data[1].to(device)  # (b, c, l)
 
-        # 1.1 Forward
-        model.train()
-        output = model(mixture)
+            # from IPython import embed; embed(using=False); os._exit(0) 
+            # soundfile.write(file="_zz.wav", data=target[1, 0].cpu().numpy(), samplerate=48000)
+            # soundfile.write(file="_zz2.wav", data=mixture[1, 0].cpu().numpy(), samplerate=48000)
+            # soundfile.write(file="_zz3.wav", data=torch.sum(data[0][0, :, 0, :], dim=0), samplerate=48000)
 
-        # 1.2 Loss
-        loss = loss_fn(output=output, target=target)
-        
-        # 1.3 Optimize
-        optimizer.zero_grad()  # Reset all parameter.grad to 0
-        loss.backward()  # Update all parameter.grad
-        # torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-        optimizer.step()  # Update all parameters based on all parameter.grad
-        scheduler.step()
-        update_ema(ema, model, decay=0.999)
+            # 1.1 Forward
+            model.train()
+            output = model(mixture)
 
-        if step % 100 == 0:
-            grad_norm = get_grad_norm(model)
-            print(f"{loss.item():.04f}", f"{grad_norm:.04f}")
+            # 1.2 Loss
+            loss = loss_fn(output=output, target=target)
+            
+            # 1.3 Optimize
+            optimizer.zero_grad()  # Reset all parameter.grad to 0
+            loss.backward()  # Update all parameter.grad
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            optimizer.step()  # Update all parameters based on all parameter.grad
+            scheduler.step()
+            update_ema(ema, model, decay=0.999)
 
-        # ------ 2. Evaluation ------
-        # 2.1 Evaluate
-        if step % configs["train"]["test_every_n_steps"] == 0:
+            if step % 100 == 0:
+                grad_norm = get_grad_norm(model)
+                print(f"{step} {loss.item():.04f}", f"{grad_norm:.04f}")
 
-            train_sdr = validate(
-                configs=configs,
-                model=ema,
-                split="train",
-                audios_num=valid_num,
-            )
+            # ------ 2. Evaluation ------
+            # 2.1 Evaluate
+            if step % configs["train"]["test_every_n_steps"] == 0:
 
-            test_sdr = validate(
-                configs=configs,
-                model=ema,
-                split="test",
-                audios_num=valid_num,
-            )
-
-            if wandb_log:
-                wandb.log(
-                    data={
-                        "train_sdr": train_sdr, 
-                        "test_sdr": test_sdr,
-                    },
-                    step=step
+                train_sdr = validate(
+                    configs=configs,
+                    model=ema,
+                    split="train",
+                    audios_num=valid_num,
                 )
 
-            print("====== Overall metrics ====== ")
-            print(f"Train SDR: {train_sdr:.2f} dB")
-            print(f"Test SDR: {test_sdr:.2f} dB")
-        
-        # 2.2 Save model
-        if step % configs["train"]["save_every_n_steps"] == 0:
-            
-            ckpt_path = Path(ckpts_dir, f"step={step}_ema.pth")
-            torch.save(ema.state_dict(), ckpt_path)
-            print("Save model to {}".format(ckpt_path))
+                test_sdr = validate(
+                    configs=configs,
+                    model=ema,
+                    split="test",
+                    audios_num=valid_num,
+                )
 
-        if step == configs["train"]["training_steps"]:
-            break
+                if wandb_log:
+                    wandb.log(
+                        data={
+                            "train_sdr": train_sdr, 
+                            "test_sdr": test_sdr,
+                        },
+                        step=step
+                    )
+
+                print("====== Overall metrics ====== ")
+                print(f"Train SDR: {train_sdr:.2f} dB")
+                print(f"Test SDR: {test_sdr:.2f} dB")
+            
+            # 2.2 Save model
+            if step % configs["train"]["save_every_n_steps"] == 0:
+                
+                ckpt_path = Path(ckpts_dir, f"step={step}_ema.pth")
+                torch.save(ema.state_dict(), ckpt_path)
+                print("Save model to {}".format(ckpt_path))
+
+            if step == configs["train"]["training_steps"]:
+                break
+
+            step += 1
 
 
 def get_grad_norm(model):
@@ -1086,15 +1118,25 @@ def get_loss_fn(configs: dict) -> callable:
         device = configs["train"]["device"]
         return Loss07a().to(device)
 
-    elif loss_type == "loss_08a":
-        from mss.losses.loss_08a import Loss08a
-        device = configs["train"]["device"]
-        return Loss08a().to(device)
-
     elif loss_type == "loss_09a":
         from mss.losses.loss_09a import Loss09a
         device = configs["train"]["device"]
         return Loss09a().to(device)
+
+    elif loss_type == "loss_09b":
+        from mss.losses.loss_09b import Loss09b
+        device = configs["train"]["device"]
+        return Loss09b().to(device)
+
+    elif loss_type == "loss_10a":
+        from mss.losses.loss_10a import Loss10a
+        device = configs["train"]["device"]
+        return Loss10a().to(device)
+
+    elif loss_type == "loss_11a":
+        from mss.losses.loss_11a import Loss11a
+        device = configs["train"]["device"]
+        return Loss11a().to(device)
 
     else:
         raise ValueError(loss_type)

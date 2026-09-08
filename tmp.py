@@ -69,7 +69,7 @@ def train(args) -> None:
     ema.eval()  # EMA model should always be in eval mode
 
     # Loss function
-    loss_fn = get_loss_fn(configs)
+    loss_fn = get_loss_fn(configs).to(device)
 
     # Optimizer
     optimizer, scheduler = get_optimizer_and_scheduler(
@@ -99,56 +99,29 @@ def train(args) -> None:
         # 1.3 Optimize
         optimizer.zero_grad()  # Reset all parameter.grad to 0
         loss.backward()  # Update all parameter.grad
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         optimizer.step()  # Update all parameters based on all parameter.grad
         scheduler.step()
         update_ema(ema, model, decay=0.999)
 
-        if step % 10 == 0:
-            print(loss)
-
-        '''
-        # ------ 2. Evaluation ------
-        # 2.1 Evaluate
-        if step % configs["train"]["test_every_n_steps"] == 0:
-
-            train_sdr = validate(
-                configs=configs,
-                model=ema,
-                split="train",
-                audios_num=valid_num,
-            )
-
-            test_sdr = validate(
-                configs=configs,
-                model=ema,
-                split="test",
-                audios_num=valid_num,
-            )
-
-            if wandb_log:
-                wandb.log(
-                    data={
-                        "train_sdr": train_sdr, 
-                        "test_sdr": test_sdr,
-                    },
-                    step=step
-                )
-
-            print("====== Overall metrics ====== ")
-            print(f"Train SDR: {train_sdr:.2f} dB")
-            print(f"Test SDR: {test_sdr:.2f} dB")
-        
-        # 2.2 Save model
-        if step % configs["train"]["save_every_n_steps"] == 0:
-            
-            ckpt_path = Path(ckpts_dir, f"step={step}_ema.pth")
-            torch.save(ema.state_dict(), ckpt_path)
-            print("Save model to {}".format(ckpt_path))
+        if step % 100 == 0:
+            grad_norm = get_grad_norm(model)
+            print(f"{loss.item():.04f}", f"{grad_norm:.04f}")
 
         if step == configs["train"]["training_steps"]:
             break
-        '''
-        
+
+
+def get_grad_norm(model):
+    total_norm = 0.0
+    for p in model.parameters():
+        if p.grad is not None:
+            param_norm = p.grad.detach().norm(2)
+            total_norm += param_norm.item() ** 2
+
+    total_norm = total_norm ** 0.5
+    return total_norm
+
 
 def get_dataset(
     configs: dict, 
@@ -939,6 +912,14 @@ def get_model(
         from mss.models2.bsroformer118a import BSRoformer118a
         model = BSRoformer118a(**configs["model"])
 
+    elif name == "BSRoformer120a":
+        from mss.models2.bsroformer120a import BSRoformer120a
+        model = BSRoformer120a(**configs["model"])
+
+    elif name == "BSRoformer121a":
+        from mss.models2.bsroformer121a import BSRoformer121a
+        model = BSRoformer121a(**configs["model"])
+
     elif name == "Jimmy56b":
         from mss.models2.jimmy56b import Jimmy56b
         model = Jimmy56b(**configs["model"])
@@ -977,6 +958,10 @@ def get_loss_fn(configs: dict) -> callable:
     elif loss_type == "l1_wav_l1_multistft":
         from mss.losses.wav_stft import MultiResolutionSTFTLoss
         return MultiResolutionSTFTLoss()
+
+    elif loss_type == "l1_wav_l1_multistft_l1_logmel":
+        from mss.losses.wav_stft_logmel import MultiResolutionSTFTLogMelLoss
+        return MultiResolutionSTFTLogMelLoss()
 
     elif loss_type == "l1_wav_l1_multistft_2048":
         from mss.losses.wav_stft import MultiResolutionSTFTLoss2048
@@ -1022,6 +1007,71 @@ def get_loss_fn(configs: dict) -> callable:
         from mss.losses.wav_stft import MultiResolutionSTFTLossSC
         device = configs["train"]["device"]
         return MultiResolutionSTFTLossSC().to(device)
+
+    elif loss_type == "loss_01a":
+        from mss.losses.loss_01a import Loss01a
+        device = configs["train"]["device"]
+        return Loss01a().to(device)
+
+    elif loss_type == "loss_02a":
+        from mss.losses.loss_02a import Loss02a
+        device = configs["train"]["device"]
+        return Loss02a().to(device)
+
+    elif loss_type == "loss_03a":
+        from mss.losses.loss_03a import Loss03a
+        device = configs["train"]["device"]
+        return Loss03a().to(device)
+
+    elif loss_type == "loss_03b":
+        from mss.losses.loss_03b import Loss03b
+        device = configs["train"]["device"]
+        return Loss03b().to(device)
+
+    elif loss_type == "loss_04a":
+        from mss.losses.loss_04a import Loss04a
+        device = configs["train"]["device"]
+        return Loss04a().to(device)
+
+    elif loss_type == "loss_05a":
+        from mss.losses.loss_05a import Loss05a
+        device = configs["train"]["device"]
+        return Loss05a().to(device)
+
+    elif loss_type == "loss_06a":
+        from mss.losses.loss_06a import Loss06a
+        device = configs["train"]["device"]
+        return Loss06a().to(device)
+
+    elif loss_type == "loss_07a":
+        from mss.losses.loss_07a import Loss07a
+        device = configs["train"]["device"]
+        return Loss07a().to(device)
+
+    elif loss_type == "loss_08a":
+        from mss.losses.loss_08a import Loss08a
+        device = configs["train"]["device"]
+        return Loss08a().to(device)
+
+    elif loss_type == "loss_09a":
+        from mss.losses.loss_09a import Loss09a
+        device = configs["train"]["device"]
+        return Loss09a().to(device)
+
+    elif loss_type == "loss_09b":
+        from mss.losses.loss_09b import Loss09b
+        device = configs["train"]["device"]
+        return Loss09b().to(device)
+
+    elif loss_type == "loss_10a":
+        from mss.losses.loss_10a import Loss10a
+        device = configs["train"]["device"]
+        return Loss10a().to(device)
+
+    elif loss_type == "loss_11a":
+        from mss.losses.loss_11a import Loss11a
+        device = configs["train"]["device"]
+        return Loss11a().to(device)
 
     else:
         raise ValueError(loss_type)

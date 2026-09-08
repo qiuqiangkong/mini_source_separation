@@ -149,7 +149,6 @@ def train(args) -> None:
         if step == configs["train"]["training_steps"]:
             break
 
-
 # from mss.augmentations.torch.gain import RandomGain
 # from mss.augmentations.torch.pitch import RandomPitch
 # from einops import rearrange
@@ -220,6 +219,29 @@ def get_dataset(
 
             )
 
+        elif name == "MUSDB18HQIntraMix2":
+
+            from mss.datasets.musdb18hq_mix2 import MUSDB18HQIntraMix2
+
+            return MUSDB18HQIntraMix2(
+                root=configs[ds][name]["root"],
+                split=configs[ds][name]["split"],
+                sr=sr,
+                crop=RandomCrop(clip_duration=configs["load_duration"], end_pad=0.),
+                segment_duration=configs["segment_duration"],
+                target_stems=[target_stem],
+                augmentations=configs["augmentations"]
+
+                # intra_sources=configs["augmentation"]
+                # min_intra_sources=configs["augmentation"]["cpu"]["mixing"]["intra_source"]["min_sources"],
+                # max_intra_sources=configs["augmentation"]["cpu"]["mixing"]["intra_source"]["max_sources"],
+                # time_align=configs["augmentation"]["cpu"]["mixing"]["extra_source"]["time_align"],
+                # mixture_transform=None,
+                # group_transform=None,
+                # stem_transform=get_stem_transform2(configs),
+
+            )
+
         else:
             raise ValueError(name)
             
@@ -240,6 +262,10 @@ def get_sampler(configs: dict, dataset: Dataset) -> Iterable:
     elif name == "RandomSongSamplerMix":
         from mss.samplers.random_song_sampler_mix import RandomSongSamplerMix
         return RandomSongSamplerMix(dataset, configs["augmentation"]["cpu"]["mixing"]["intra_source"]["max_sources"])
+
+    elif name == "RandomSongSamplerMix2":
+        from mss.samplers.random_song_sampler_mix2 import RandomSongSamplerMix2
+        return RandomSongSamplerMix2(dataset, configs["augmentations"])
 
     else:
         raise ValueError(name)
@@ -612,6 +638,10 @@ def get_model(
     elif name == "BSRoformer61a":
         from mss.models2.bsroformer61a import BSRoformer61a
         model = BSRoformer61a(**configs["model"])
+
+    elif name == "BSRoformer115d":
+        from mss.models2.bsroformer115d import BSRoformer115d
+        model = BSRoformer115d(**configs["model"])
 
     else:
         raise ValueError(name)    

@@ -10,6 +10,9 @@ from scipy.optimize import fsolve, root_scalar, newton
 from torch import Tensor
 from mss.utils import fast_sdr
 import matplotlib.pyplot as plt
+import librosa
+import soundfile
+import time
 # from torchvision.io import read_video, write_video
 
 
@@ -736,5 +739,205 @@ def add26():
     from IPython import embed; embed(using=False); os._exit(0)
 
 
+def add26b():
+    from mss.models2.dsp3.banks import mel_linear_banks_triangle, erb_linear_banks_triangle, exp_linear_banks2, erb_linear_ex_banks_triangle, linear_banks_triangle
+
+    sr = 48000
+    n_bands = 128
+    max_bandwidth = 390
+
+    lines = []
+
+    # banks = mel_linear_banks_triangle(sr, 118, max_bandwidth)
+    # freqs = [bank[0] for bank in banks]
+    # line, = plt.plot(freqs, label="mel_linear")
+    # lines.append(line)
+
+    # banks = erb_linear_banks_triangle(sr, 112, max_bandwidth)
+    # freqs = [bank[0] for bank in banks]
+    # line, = plt.plot(freqs, label="erb_linear_banks_triangle")
+    # lines.append(line)
+
+    a, b = 21.4, 0.001
+    banks = erb_linear_ex_banks_triangle(sr, 120, max_bandwidth, a=a, b=b)
+    freqs = [bank[0] for bank in banks]
+    line, = plt.plot(freqs, label=f"erb_linear_ex_banks_triangle, a={a}, b={b}")
+    lines.append(line)
+
+    a, b = 100, 0.001
+    banks = erb_linear_ex_banks_triangle(sr, 120, max_bandwidth, a=a, b=b)
+    freqs = [bank[0] for bank in banks]
+    line, = plt.plot(freqs, label=f"erb_linear_ex_banks_triangle, a={a}, b={b}")
+    lines.append(line)
+
+    plt.legend(handles=lines)
+    plt.savefig("_zz.pdf")
+
+    
+
+    # from IPython import embed; embed(using=False); os._exit(0)
+
+
+def add27():
+    from mss.models2.dsp3.banks import mel_linear_banks_triangle
+
+    sr = 48000
+    n_bands = 64
+    max_bandwidth = 790
+
+    lines = []
+
+    banks = mel_linear_banks_triangle(sr, 58, max_bandwidth)
+    
+    from IPython import embed; embed(using=False); os._exit(0)
+
+    # 64 bins
+    self.n_fft = 64
+    self.hop_length = 16
+    self.patch_size_t = 4
+    max_half_bandwidth = 790
+    factor = sample_rate // 1600
+    chunk_size = 16
+
+    # Subband filter
+    banks = mel_linear_banks_triangle(sample_rate, 58, max_half_bandwidth)
+    self.sb_filter = SubbandFilter(sample_rate, banks, factor, chunk_size=chunk_size)
+
+
+def add28():
+
+    path = "assets/music_10s.wav"
+    audio, fs = librosa.load(path=path, sr=None, mono=True)
+
+    out = audio.copy().astype(np.float16)
+    sdr = fast_sdr(audio, out)
+    from IPython import embed; embed(using=False); os._exit(0)
+
+
+def add29():
+    from mss.augmentations.numpy.resample import RandomResample
+    from mss.augmentations.numpy.pitch import RandomPitch
+
+    sr = 48000
+    path = "assets/music_10s.wav"
+    audio, fs = librosa.load(path=path, sr=sr, mono=True)
+    audio = audio[None, :]
+
+    # from IPython import embed; embed(using=False); os._exit(0)
+    # aug = RandomResample(sr=sr, min_ratio=0.95, max_ratio=0.95)
+    aug = RandomPitch(sr=sr, min_step=4.0, max_step=4.0)
+    while True:
+        t1 = time.time()
+        y = aug(audio)
+        print(time.time() - t1)
+    soundfile.write(file="_zz.wav", data=y.T, samplerate=sr)
+
+
+
+def add30():
+    sr = 48000
+    n_fft = 2048
+    path = "assets/music_10s.wav"
+    audio, fs = librosa.load(path=path, sr=sr, mono=True)
+    audio = Tensor(audio)
+    X = torch.stft(
+        input=audio, 
+        n_fft=n_fft,
+        hop_length=480,
+        window=torch.hann_window(n_fft),
+        normalized=True,
+        onesided=False,
+        return_complex=True
+    ).T.abs()[:, 0 : n_fft // 2 + 1]
+    X2 = librosa.core.stft(y=audio.n, n_fft=2048, hop_length=480, window='hann', center=True).abs()
+
+    plt.matshow(np.log10(X).T, origin='lower', aspect='auto', cmap='jet')
+    plt.savefig("_zz.pdf")
+    from IPython import embed; embed(using=False); os._exit(0)
+
+
+def add30b():
+    sr = 48000
+    n_fft = 2048
+    path = "assets/music_10s.wav"
+    audio, fs = librosa.load(path=path, sr=sr, mono=True)
+
+    X = librosa.feature.melspectrogram(y=audio, sr=sr, n_fft=n_fft, hop_length=480, n_mels=512).T
+    plt.matshow(np.log10(X).T, origin='lower', aspect='auto', cmap='jet')
+    plt.savefig("_zz.pdf")
+    from IPython import embed; embed(using=False); os._exit(0)
+
+
+def add31():
+    # x = np.arange(0, 1, 0.01)
+
+    # a = 100
+    # y = np.log10(1 + a * x)
+
+    x = torch.arange(0, 3, 0.01)
+    mu = 255
+    y = torch.sign(x) * torch.log1p(mu * torch.abs(x)) / math.log(1.0 + mu)
+
+    print(y)
+
+
+def add32():
+    from mss.models2.dsp3.banks import mel_linear_banks_triangle
+    from mss.models2.dsp3.subband_fast_triangle import SubbandFilter
+
+    sr = 48000
+    n_bins = 32
+
+    if n_bins == 32:
+        n_bands = 28
+        max_half_bandwidth = 1590
+        chunk_size = 16  # Try to tune this to balance RAM and computation speed
+        factor = sr // (1600 * 2)  # Can be smaller but not larger!
+        device = "cuda"
+
+    elif n_bins == 64:
+        n_bands = 58
+        max_half_bandwidth = 790
+        chunk_size = 16  # Try to tune this to balance RAM and computation speed
+        factor = sr // (800 * 2)  # Can be smaller but not larger!
+        device = "cuda"
+
+    elif n_bins == 128:
+        n_bands = 118
+        max_half_bandwidth = 390
+        chunk_size = 16  # Try to tune this to balance RAM and computation speed
+        factor = sr // (400 * 2)  # Can be smaller but not larger!
+        device = "cuda"
+
+    elif n_bins == 256:
+        n_bands = 235
+        max_half_bandwidth = 190
+        chunk_size = 16  # Try to tune this to balance RAM and computation speed
+        factor = sr // (200 * 2)  # Can be smaller but not larger!
+        device = "cuda"
+
+    # Melbanks
+    banks = mel_linear_banks_triangle(sr, n_bands, max_half_bandwidth)
+    sb_filter = SubbandFilter(sr, banks, factor, chunk_size=chunk_size).to(device)
+    print(len(banks))
+
+    for _ in range(5):
+
+        # Audio
+        rs = np.random.RandomState(1234)
+        audio = rs.uniform(low=-1, high=1, size=(4, 2, sr * 2))
+        audio = Tensor(audio).to(device)  # (c, l)
+                
+        # Analysis
+        t0 = time.time()
+        x = sb_filter.analysis(audio)  # (b, c, k, l)
+        y = sb_filter.synthesis(x)
+        
+        # Print
+        t1 = time.time() - t0
+        sdr = fast_sdr(audio.cpu().numpy(), y.cpu().numpy())
+        print(f"time: {t1:.4f} s, latent: {x.shape}, SDR: {sdr:.2f} dB")
+
+
 if __name__ == '__main__':
-    add26()
+    add32()

@@ -29,7 +29,7 @@ class BSRoformer115d(nn.Module):
 
         super().__init__()
         
-        n_bands = 103
+        # 128 bands
         self.n_fft = 32
         self.hop_length = 8
         self.patch_size_t = 4
